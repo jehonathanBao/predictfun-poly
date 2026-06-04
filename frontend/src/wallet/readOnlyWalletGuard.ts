@@ -16,6 +16,8 @@ declare global {
   }
 }
 
+const READ_ONLY_METHODS = new Set(["eth_accounts", "eth_requestAccounts", "eth_chainId", "eth_getBalance"]);
+
 export function injectedProvider(): InjectedEthereumProvider | undefined {
   return window.ethereum;
 }
@@ -24,7 +26,7 @@ export async function connectInjectedWallet(): Promise<ConnectedWalletState> {
   const provider = injectedProvider();
   if (!provider) return {};
 
-  const accounts = await provider.request<string[]>({ method: "eth_requestAccounts" });
+  const accounts = await readOnlyRequest<string[]>(provider, "eth_requestAccounts");
   const address = accounts[0];
   const chainId = await readChainId(provider);
   const balance = address ? await readBalance(provider, address) : undefined;
@@ -40,7 +42,7 @@ export async function readInjectedWallet(): Promise<ConnectedWalletState> {
   const provider = injectedProvider();
   if (!provider) return {};
 
-  const accounts = await provider.request<string[]>({ method: "eth_accounts" });
+  const accounts = await readOnlyRequest<string[]>(provider, "eth_accounts");
   const address = accounts[0];
   const chainId = await readChainId(provider);
   const balance = address ? await readBalance(provider, address) : undefined;
@@ -65,17 +67,24 @@ export function shortAddress(address?: string): string {
 }
 
 async function readChainId(provider: InjectedEthereumProvider): Promise<number | undefined> {
-  const chainIdHex = await provider.request<string>({ method: "eth_chainId" });
+  const chainIdHex = await readOnlyRequest<string>(provider, "eth_chainId");
   return Number.parseInt(chainIdHex, 16);
 }
 
 async function readBalance(provider: InjectedEthereumProvider, address: string): Promise<string | undefined> {
-  const balanceHex = await provider.request<string>({
-    method: "eth_getBalance",
-    params: [address, "latest"],
-  });
-
+  const balanceHex = await readOnlyRequest<string>(provider, "eth_getBalance", [address, "latest"]);
   return formatNativeBalance(BigInt(balanceHex));
+}
+
+async function readOnlyRequest<T>(
+  provider: InjectedEthereumProvider,
+  method: string,
+  params?: unknown[],
+): Promise<T> {
+  if (!READ_ONLY_METHODS.has(method)) {
+    throw new Error("Wallet request blocked by read-only guard");
+  }
+  return provider.request<T>({ method, params });
 }
 
 function formatNativeBalance(wei: bigint): string {

@@ -332,6 +332,18 @@ address, chain, balance, masked backend trading address, address match state,
 and network warnings. It does not sign messages, send transactions, expose
 private keys, expose mnemonics, expose API secrets, or enable hedge execution.
 
+Account health is also read-only:
+
+```text
+GET /api/account-health
+```
+
+It returns dry-run mode, wallet configuration, Predict usage, Polymarket
+configuration, and warnings. It never returns private keys, mnemonics, API
+secrets, raw signers, raw tokens, or live hedge execution state. The frontend
+wallet code lives under `frontend/src/wallet` and uses a read-only guard for
+wallet requests.
+
 To point the dashboard API at a JSON snapshot instead of the built-in sample
 plans, set `HEDGE_DASHBOARD_SNAPSHOT` to a file containing either an array of
 plans or an object with a `plans` array.

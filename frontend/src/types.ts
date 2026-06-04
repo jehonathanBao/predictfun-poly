@@ -77,3 +77,26 @@ export interface WalletStatus {
   allowFrontendSigning: false;
   allowFrontendTransactions: false;
 }
+
+export interface AccountHealth {
+  mode: "dry_run";
+  readOnly: true;
+  liveTradingEnabled: false;
+  wallet: {
+    enabled: boolean;
+    backendAddressMasked?: string;
+    expectedChainId: number | null;
+    expectedChainName: string | null;
+  };
+  predict: {
+    configured: boolean;
+    usagePct: number;
+    maxUsagePct: number;
+    accountCount: number;
+  };
+  polymarket: {
+    configured: boolean;
+    allowedVenues: readonly string[];
+  };
+  warnings: readonly string[];
+}

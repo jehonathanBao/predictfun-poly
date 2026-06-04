@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
+import { buildAccountHealthResponse } from "./account-health.js";
 import { loadHedgePlansForDashboard } from "./dashboard-data-source.js";
 import { loadDashboardStatus } from "./dashboard-status.js";
 
@@ -81,6 +82,11 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
 
   if (request.url === "/api/wallet-status") {
     sendJson(response, 200, buildWalletStatusResponse(process.env));
+    return;
+  }
+
+  if (request.url === "/api/account-health") {
+    sendJson(response, 200, buildAccountHealthResponse(process.env));
     return;
   }
 

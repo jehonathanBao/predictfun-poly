@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { chainName } from "../lib/chains";
+import { chainName } from "./chains";
 import {
   connectInjectedWallet,
   injectedProvider,
   readInjectedWallet,
   sameAddress,
   type ConnectedWalletState,
-} from "../lib/wallet";
+} from "./readOnlyWalletGuard";
 import type { WalletStatus } from "../types";
 
 const WALLET_STATUS_URL = import.meta.env.VITE_WALLET_STATUS_URL ?? "/api/wallet-status";
@@ -24,7 +24,7 @@ export interface WalletPanelState {
   connect: () => Promise<void>;
 }
 
-export function useWalletStatus(): WalletPanelState {
+export function useReadOnlyWalletStatus(): WalletPanelState {
   const [backend, setBackend] = useState<WalletStatus>();
   const [wallet, setWallet] = useState<ConnectedWalletState>({});
   const [loading, setLoading] = useState(true);

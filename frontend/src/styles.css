@@ -298,6 +298,112 @@ h1 {
   font-size: 13px;
 }
 
+.accountHealthPanel {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.accountHealthHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.accountHealthHeader h2 {
+  color: #101828;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.accountHealthHeader p {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.accountHealthMode {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: #126143;
+  background: #edf8f3;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.accountHealthGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.accountHealthItem {
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.accountHealthItem span {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.accountHealthItem strong {
+  display: block;
+  margin-top: 7px;
+  color: #101828;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.accountHealthItem.ok strong {
+  color: #14714c;
+}
+
+.accountHealthItem.warn strong {
+  color: #b54708;
+}
+
+.accountWarningList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.accountWarning,
+.accountOk {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.accountWarning {
+  color: #9f2b1f;
+  background: #fff1ef;
+}
+
+.accountOk {
+  color: #126143;
+  background: #edf8f3;
+}
+
 .connectButton {
   height: 36px;
   padding: 0 14px;
@@ -565,6 +671,10 @@ tbody tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .accountHealthGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .detailPane {
     width: 100%;
     flex-basis: auto;
@@ -600,6 +710,10 @@ tbody tr:last-child td {
   }
 
   .walletGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .accountHealthGrid {
     grid-template-columns: 1fr;
   }
 

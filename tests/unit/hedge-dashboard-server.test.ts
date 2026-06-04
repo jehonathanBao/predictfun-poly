@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildAccountHealthResponse } from "../../src/server/account-health.js";
 import {
   buildWalletStatusResponse,
   createDashboardServer,
@@ -23,6 +24,13 @@ afterEach(async () => {
   delete process.env.POLY_API_KEY;
   delete process.env.POLY_PASSPHRASE;
   delete process.env.PREDICT_API_KEY;
+  delete process.env.POLYMARKET_FUNDER_ADDRESS;
+  delete process.env.BACKEND_TRADING_ADDRESS;
+  delete process.env.PREDICT_USAGE_PCT;
+  delete process.env.PREDICT_CURRENT_USAGE_PCT;
+  delete process.env.PREDICT_ACCOUNT_COUNT;
+  delete process.env.HEDGE_MAX_PREDICT_USAGE_PCT;
+  delete process.env.HEDGE_ALLOWED_VENUES;
   await rm(tempDir, { recursive: true, force: true });
 });
 
@@ -219,13 +227,100 @@ describe("hedge dashboard status API", () => {
   });
 });
 
+describe("hedge dashboard account health API", () => {
+  it("builds read-only account health without secret material", () => {
+    const health = buildAccountHealthResponse({
+      POLYMARKET_PRIVATE_KEY: "private-key-value",
+      POLY_API_SECRET: "poly-secret-value",
+      POLY_API_KEY: "poly-key-value",
+      POLY_PASSPHRASE: "poly-passphrase-value",
+      PREDICT_API_KEY: "predict-key-value",
+      POLYMARKET_FUNDER_ADDRESS: "0x1234567890abcdef1234567890abcdef12345678",
+      PREDICT_USAGE_PCT: "0.18",
+      HEDGE_MAX_PREDICT_USAGE_PCT: "0.30",
+      PREDICT_ACCOUNT_COUNT: "3",
+      HEDGE_ALLOWED_VENUES: "polymarket",
+      HEDGE_LIVE_TRADING_ENABLED: "true",
+    });
+    const serialized = JSON.stringify(health);
+
+    expect(health.mode).toBe("dry_run");
+    expect(health.readOnly).toBe(true);
+    expect(health.liveTradingEnabled).toBe(false);
+    expect(health.wallet.backendAddressMasked).toBe("0x1234...5678");
+    expect(health.predict).toMatchObject({
+      configured: true,
+      usagePct: 0.18,
+      maxUsagePct: 0.3,
+      accountCount: 3,
+    });
+    expect(health.polymarket).toMatchObject({
+      configured: true,
+      allowedVenues: ["polymarket"],
+    });
+    expect(health.warnings).toContain("live_trading_request_ignored_in_dashboard");
+    expect(serialized).not.toContain("private-key-value");
+    expect(serialized).not.toContain("poly-secret-value");
+    expect(serialized).not.toContain("poly-key-value");
+    expect(serialized).not.toContain("poly-passphrase-value");
+    expect(serialized).not.toContain("predict-key-value");
+    expect(serialized).not.toContain("mnemonic");
+    expect(serialized).not.toContain("rawSigner");
+    expect(serialized).not.toContain("rawToken");
+  });
+
+  it("serves GET /api/account-health as dry-run read-only status", async () => {
+    process.env.POLYMARKET_PRIVATE_KEY = "private-key-value";
+    process.env.POLY_API_SECRET = "api-secret-value";
+    process.env.POLY_API_KEY = "api-key-value";
+    process.env.POLY_PASSPHRASE = "passphrase-value";
+    process.env.PREDICT_API_KEY = "predict-key-value";
+    process.env.POLYMARKET_FUNDER_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
+    process.env.PREDICT_USAGE_PCT = "0.12";
+    process.env.PREDICT_ACCOUNT_COUNT = "2";
+
+    const server = createDashboardServer();
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server did not bind to a TCP port");
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/account-health`);
+      const body = (await response.json()) as Record<string, unknown>;
+      const serialized = JSON.stringify(body);
+
+      expect(response.status).toBe(200);
+      expect(body.mode).toBe("dry_run");
+      expect(body.readOnly).toBe(true);
+      expect(body.liveTradingEnabled).toBe(false);
+      expect(serialized).toContain("0x1234...5678");
+      expect(serialized).not.toContain("private-key-value");
+      expect(serialized).not.toContain("api-secret-value");
+      expect(serialized).not.toContain("api-key-value");
+      expect(serialized).not.toContain("passphrase-value");
+      expect(serialized).not.toContain("predict-key-value");
+      expect(serialized).not.toContain("mnemonic");
+      expect(serialized).not.toContain("rawSigner");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
+
 describe("dashboard frontend safety copy", () => {
   it("does not expose live execution controls", async () => {
     const files = [
       "frontend/src/App.tsx",
+      "frontend/src/components/AccountHealthPanel.tsx",
       "frontend/src/components/HedgePlanTable.tsx",
       "frontend/src/components/RuntimeStatusPanel.tsx",
-      "frontend/src/components/WalletPanel.tsx",
+      "frontend/src/wallet/WalletPanel.tsx",
+      "frontend/src/wallet/Web3Provider.tsx",
+      "frontend/src/wallet/chains.ts",
+      "frontend/src/wallet/readOnlyWalletGuard.ts",
+      "frontend/src/wallet/useReadOnlyWalletStatus.ts",
     ];
     const source = (await Promise.all(files.map((file) => readFile(file, "utf8")))).join("\n");
 
@@ -233,5 +328,30 @@ describe("dashboard frontend safety copy", () => {
     expect(source).not.toMatch(/Execute hedge/i);
     expect(source).not.toMatch(/Place Order/i);
     expect(source).not.toMatch(/Enable Live/i);
+  });
+
+  it("does not include wallet write or signing calls", async () => {
+    const files = [
+      "frontend/src/App.tsx",
+      "frontend/src/components/AccountHealthPanel.tsx",
+      "frontend/src/wallet/WalletPanel.tsx",
+      "frontend/src/wallet/Web3Provider.tsx",
+      "frontend/src/wallet/readOnlyWalletGuard.ts",
+      "frontend/src/wallet/useReadOnlyWalletStatus.ts",
+    ];
+    const source = (await Promise.all(files.map((file) => readFile(file, "utf8")))).join("\n");
+
+    expect(source).not.toContain("sendTransaction");
+    expect(source).not.toContain("writeContract");
+    expect(source).not.toContain("signMessage");
+    expect(source).not.toContain("signTypedData");
+  });
+
+  it("renders account health dry-run and live disabled copy", async () => {
+    const source = await readFile("frontend/src/components/AccountHealthPanel.tsx", "utf8");
+
+    expect(source).toContain("dry-run");
+    expect(source).toContain("Live trading");
+    expect(source).toContain("disabled");
   });
 });

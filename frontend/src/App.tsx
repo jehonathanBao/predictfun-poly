@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { AccountHealthPanel } from "./components/AccountHealthPanel";
 import { HedgePlanTable } from "./components/HedgePlanTable";
 import { RuntimeStatusPanel } from "./components/RuntimeStatusPanel";
-import { WalletPanel } from "./components/WalletPanel";
+import { WalletPanel } from "./wallet/WalletPanel";
 import type { DashboardStatus, HedgePlan, HedgePlanEnvelope } from "./types";
 
 type FilterMode = "all" | "approved" | "rejected";
@@ -87,6 +88,8 @@ export function App() {
       <RuntimeStatusPanel status={runtimeStatus} />
 
       <WalletPanel />
+
+      <AccountHealthPanel />
 
       <section className="controlBand" aria-label="plan filters">
         <div className="segmentedControl">

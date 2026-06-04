@@ -1,6 +1,6 @@
-import { POLYGON } from "../lib/chains";
-import { shortAddress } from "../lib/wallet";
-import { useWalletStatus } from "../hooks/useWalletStatus";
+import { POLYGON } from "./chains";
+import { shortAddress } from "./readOnlyWalletGuard";
+import { useReadOnlyWalletStatus } from "./useReadOnlyWalletStatus";
 
 export function WalletPanel() {
   const {
@@ -14,7 +14,7 @@ export function WalletPanel() {
     isCorrectNetwork,
     addressMatch,
     connect,
-  } = useWalletStatus();
+  } = useReadOnlyWalletStatus();
 
   const currency = backend?.expectedChainId === POLYGON.id ? POLYGON.nativeCurrency : "native";
 
