@@ -1,9 +1,22 @@
-import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildWalletStatusResponse,
   createDashboardServer,
 } from "../../src/server/hedge-dashboard.js";
+
+let tempDir: string;
+
+beforeEach(async () => {
+  tempDir = await mkdtemp(join(tmpdir(), "hedge-dashboard-server-"));
+});
+
+afterEach(async () => {
+  delete process.env.HEDGE_DASHBOARD_SNAPSHOT;
+  await rm(tempDir, { recursive: true, force: true });
+});
 
 describe("hedge dashboard wallet status", () => {
   it("does not return private keys, mnemonics, or API secrets", () => {
@@ -64,6 +77,64 @@ describe("hedge dashboard wallet status", () => {
       expect(serialized).not.toContain("privateKey");
       expect(serialized).not.toContain("apiSecret");
       expect(serialized).not.toContain("rawSigner");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
+
+describe("hedge dashboard plan API", () => {
+  it("serves a dry-run envelope from the configured snapshot", async () => {
+    const snapshotPath = join(tempDir, "snapshot.json");
+    await writeFile(
+      snapshotPath,
+      JSON.stringify([
+        {
+          strategy: "EXPOSURE_HEDGE",
+          predictMarketId: "predict-api",
+          eventKey: "event-api",
+          netExposureUsd: 17,
+          hedgeSizeUsd: 8.5,
+          executable: true,
+          dryRun: false,
+          risk: { approved: false, reasonCodes: ["stale_market_data"] },
+          rejectReason: "stale_market_data",
+        },
+      ]),
+      "utf8",
+    );
+    process.env.HEDGE_DASHBOARD_SNAPSHOT = snapshotPath;
+
+    const server = createDashboardServer();
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server did not bind to a TCP port");
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/hedge-plans`);
+      const body = (await response.json()) as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(body.dataSource).toBe("snapshot_env");
+      expect(body.mode).toBe("dry_run");
+      expect(body.liveTradingEnabled).toBe(false);
+      expect(body.summary).toMatchObject({
+        totalPlans: 1,
+        approvedCount: 0,
+        rejectedCount: 1,
+        maxAbsExposureUsd: 17,
+      });
+      expect(body.plans).toMatchObject([
+        {
+          marketId: "predict-api",
+          executable: false,
+          dryRun: true,
+          riskCodes: ["stale_market_data"],
+          riskApproved: false,
+        },
+      ]);
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));

@@ -28,6 +28,24 @@ export interface HedgePlan {
   riskApproved: boolean;
 }
 
+export interface HedgePlanSummary {
+  totalPlans: number;
+  approvedCount: number;
+  rejectedCount: number;
+  maxAbsExposureUsd: number;
+}
+
+export interface HedgePlanEnvelope {
+  schemaVersion: 1;
+  generatedAt: string;
+  dataSource: "snapshot_env" | "latest_file" | "example_snapshot" | "empty_fallback";
+  source: string;
+  mode: "dry_run";
+  liveTradingEnabled: false;
+  plans: HedgePlan[];
+  summary: HedgePlanSummary;
+}
+
 export interface WalletStatus {
   mode: "dry_run";
   liveTradingEnabled: false;

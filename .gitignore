@@ -15,3 +15,6 @@ node_modules/
 .pnpm-store/
 .tools/
 *.tsbuildinfo
+data/*.json
+data/*.jsonl
+!data/.gitkeep

@@ -311,7 +311,15 @@ To create a desktop shortcut for the launcher:
 
 The launcher starts the dry-run API on `http://localhost:3070`, starts the Vite
 frontend on `http://localhost:5173`, and opens the dashboard. The API endpoint
-is `GET /api/hedge-plans`.
+is `GET /api/hedge-plans`. The response is a dry-run envelope with:
+
+- `generatedAt`
+- `dataSource`
+- `plans`
+- `summary.totalPlans`
+- `summary.approvedCount`
+- `summary.rejectedCount`
+- `summary.maxAbsExposureUsd`
 
 The dashboard also exposes a read-only wallet status endpoint:
 
@@ -327,3 +335,26 @@ private keys, expose mnemonics, expose API secrets, or enable hedge execution.
 To point the dashboard API at a JSON snapshot instead of the built-in sample
 plans, set `HEDGE_DASHBOARD_SNAPSHOT` to a file containing either an array of
 plans or an object with a `plans` array.
+
+The dashboard API reads hedge plan data in this order:
+
+1. `HEDGE_DASHBOARD_SNAPSHOT`
+2. `data/hedge-plans.latest.json`
+3. `examples/hedge-dashboard-snapshot.json`
+4. an empty dry-run fallback
+
+Dry-run writers should persist the latest bot output to:
+
+```text
+data/hedge-plans.latest.json
+```
+
+and append historical observations to:
+
+```text
+data/hedge-plans.history.jsonl
+```
+
+Both runtime data files are gitignored. The storage layer sanitizes all plans
+back to `executable: false`, `dryRun: true`, `mode: "dry_run"`, and
+`liveTradingEnabled: false` before writing or serving dashboard data.

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { HedgePlanTable } from "./components/HedgePlanTable";
 import { WalletPanel } from "./components/WalletPanel";
-import type { HedgePlan } from "./types";
+import type { HedgePlan, HedgePlanEnvelope } from "./types";
 
 type FilterMode = "all" | "approved" | "rejected";
 
@@ -9,6 +9,7 @@ const API_URL = import.meta.env.VITE_HEDGE_API_URL ?? "/api/hedge-plans";
 
 export function App() {
   const [plans, setPlans] = useState<HedgePlan[]>([]);
+  const [dataEnvelope, setDataEnvelope] = useState<HedgePlanEnvelope>();
   const [selectedMarketId, setSelectedMarketId] = useState<string>();
   const [filter, setFilter] = useState<FilterMode>("all");
   const [lastUpdated, setLastUpdated] = useState<string>("never");
@@ -21,12 +22,13 @@ export function App() {
       try {
         const response = await fetch(API_URL);
         if (!response.ok) throw new Error(`API returned ${response.status}`);
-        const data = (await response.json()) as HedgePlan[];
+        const data = normalizeHedgePlanResponse(await response.json());
         if (!active) return;
-        setPlans(data);
-        setLastUpdated(new Date().toLocaleTimeString());
+        setDataEnvelope(data);
+        setPlans(data.plans);
+        setLastUpdated(formatTimestamp(data.generatedAt));
         setError(undefined);
-        setSelectedMarketId((current) => current ?? data[0]?.marketId);
+        setSelectedMarketId((current) => current ?? data.plans[0]?.marketId);
       } catch (fetchError) {
         if (!active) return;
         setError(fetchError instanceof Error ? fetchError.message : "Unable to load plans");
@@ -50,9 +52,11 @@ export function App() {
 
   const selectedPlan =
     plans.find((plan) => plan.marketId === selectedMarketId) ?? filteredPlans[0] ?? plans[0];
-  const totalNetExposure = plans.reduce((total, plan) => total + Math.abs(plan.netExposureUsd), 0);
+  const totalNetExposure =
+    dataEnvelope?.summary.maxAbsExposureUsd ??
+    plans.reduce((total, plan) => total + Math.abs(plan.netExposureUsd), 0);
   const totalHedgeSize = plans.reduce((total, plan) => total + plan.hedgeSizeUsd, 0);
-  const rejectedCount = plans.filter((plan) => !plan.riskApproved).length;
+  const rejectedCount = dataEnvelope?.summary.rejectedCount ?? plans.filter((plan) => !plan.riskApproved).length;
 
   return (
     <main className="appShell">
@@ -70,9 +74,9 @@ export function App() {
       <section className="metricGrid" aria-label="hedge summary">
         <Metric label="Plans" value={plans.length.toString()} />
         <Metric label="Rejected" value={rejectedCount.toString()} tone={rejectedCount > 0 ? "warn" : "ok"} />
-        <Metric label="Net Exposure" value={`$${formatNumber(totalNetExposure)}`} />
+        <Metric label="Max Exposure" value={`$${formatNumber(totalNetExposure)}`} />
         <Metric label="Hedge Size" value={`$${formatNumber(totalHedgeSize)}`} />
-        <Metric label="Last Update" value={lastUpdated} />
+        <Metric label="Last Updated" value={lastUpdated} />
       </section>
 
       <WalletPanel />
@@ -96,6 +100,7 @@ export function App() {
           </button>
         </div>
         <div className="guardRail">
+          <span>{dataEnvelope?.dataSource ?? "loading"}</span>
           <span>placeOrder blocked</span>
           <span>live trading off</span>
         </div>
@@ -153,6 +158,35 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function normalizeHedgePlanResponse(value: unknown): HedgePlanEnvelope {
+  if (Array.isArray(value)) {
+    const plans = value as HedgePlan[];
+    return {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      dataSource: "empty_fallback",
+      source: "legacy_array_response",
+      mode: "dry_run",
+      liveTradingEnabled: false,
+      plans,
+      summary: {
+        totalPlans: plans.length,
+        approvedCount: plans.filter((plan) => plan.riskApproved).length,
+        rejectedCount: plans.filter((plan) => !plan.riskApproved).length,
+        maxAbsExposureUsd: plans.reduce((maxExposure, plan) => Math.max(maxExposure, Math.abs(plan.netExposureUsd)), 0),
+      },
+    };
+  }
+
+  return value as HedgePlanEnvelope;
+}
+
+function formatTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleTimeString();
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
