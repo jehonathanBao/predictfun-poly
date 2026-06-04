@@ -1,0 +1,30 @@
+[
+  {
+    "strategy": "EXPOSURE_HEDGE",
+    "predictMarketId": "predict-btc-up-5m",
+    "eventKey": "btc-5m-2026-06-04-1200",
+    "netExposureUsd": 42,
+    "hedgeDirection": "SELL",
+    "hedgeMarketId": "poly-btc-up-5m",
+    "hedgeSizeUsd": 10,
+    "executable": false,
+    "dryRun": true,
+    "risk": {
+      "reasonCodes": []
+    }
+  },
+  {
+    "strategy": "EXPOSURE_HEDGE",
+    "predictMarketId": "predict-btc-down-5m",
+    "eventKey": "btc-5m-2026-06-04-1205",
+    "netExposureUsd": -18,
+    "hedgeDirection": "BUY",
+    "hedgeSizeUsd": 0,
+    "executable": false,
+    "dryRun": true,
+    "rejectReason": "no_matching_hedge_market",
+    "risk": {
+      "reasonCodes": ["no_matching_hedge_market"]
+    }
+  }
+]

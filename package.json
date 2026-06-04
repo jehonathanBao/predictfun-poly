@@ -9,6 +9,9 @@
   },
   "scripts": {
     "dev": "tsx src/main.ts",
+    "dashboard:api": "tsx src/server/hedge-dashboard.ts",
+    "dashboard:frontend": "pnpm --dir frontend dev",
+    "dashboard:frontend:build": "pnpm --dir frontend build",
     "cli": "tsx src/cli/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
