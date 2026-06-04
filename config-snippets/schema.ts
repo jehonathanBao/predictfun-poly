@@ -22,3 +22,22 @@ export const simpleMarketMakerRawSchemaSnippet = z.object({
   quote_ttl_ms: z.number().int().positive(),
   post_only: z.boolean()
 });
+
+export const hedgeRawSchemaSnippet = z.object({
+  enabled: z.boolean(),
+  dry_run: z.boolean(),
+  hedge_ratio: z.number().positive().max(1),
+  max_hedge_order_usd: z.union([z.string(), z.number()]),
+  min_hedge_order_usd: z.union([z.string(), z.number()]),
+  max_net_exposure_usd: z.union([z.string(), z.number()]),
+  max_predict_usage_pct: z.union([z.string(), z.number()]),
+  max_spread: z.number().positive(),
+  min_depth_usd: z.union([z.string(), z.number()]),
+  max_depth_usage_pct: z.number().positive().max(1),
+  max_market_data_age_ms: z.number().int().positive(),
+  require_same_event_key: z.boolean(),
+  allow_correlated_hedge: z.boolean(),
+  allowed_venues: z.array(z.enum(["polymarket", "predictfun"])),
+  live_trading_enabled: z.boolean(),
+  post_only: z.boolean()
+});

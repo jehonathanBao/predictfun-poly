@@ -38,7 +38,9 @@ TypeScript live-track structure:
 
 - `src/main.ts` - process entrypoint
 - `src/config/` - zod schema, `default.yaml`, and config loader
-- `src/strategy/` - StrategyEngine, HedgeEngine, StrategyRiskEngine, and future hedge/rebalance entrypoints
+- `src/strategy/` - StrategyEngine, HedgeEngine, StrategyRiskEngine, dry-run signal strategies, and future hedge/rebalance entrypoints
+- `src/hedge/` - dry-run exposure calculation, hedge-market matching, and hedge planning helpers
+- `src/risk/` - hedge-specific dry-run risk gates
 - `src/core/` - core public modules: types, decimal, orderbook, fee, arb engine, matcher, risk manager, coordinator, rotator, state machine
 - `src/adapters/predict/` - Predict client, auth, WS, OrderBuilder, orders, positions, balances, fees, and discovery boundaries
 - `src/adapters/polymarket/` - Polymarket Gamma, CLOB, heartbeat, WS market/user, orders, positions, balances, geoblock, and discovery boundaries
@@ -91,7 +93,7 @@ Market Discovery
     -> Arb Engine
        COMBO_A / COMBO_B pricing, fee, depth
     -> Strategy Engine
-       pure_arbitrage executable now; signal-only modes reserved
+       pure_arbitrage executable now; dry-run exposure_hedge signal supported
     -> Hedge Engine
        accepted strategy plan into hedge legs
     -> Risk Manager
@@ -179,11 +181,12 @@ The TypeScript app loads `src/config/default.yaml` through `src/config/load-conf
 Important defaults:
 
 - `mode` is `dry_run`; `live` must be explicit.
-- `strategy.strategy_mode` is `pure_arbitrage`; `simulation_edge` and `simple_market_maker` are dry-run signal modes, while `hedge_arbitrage`, `exposure_hedge`, and `rebalance_only` are interface-reserved and not live-enabled yet.
+- `strategy.strategy_mode` is `pure_arbitrage`; `simulation_edge`, `simple_market_maker`, and `exposure_hedge` are dry-run signal modes, while `hedge_arbitrage` and `rebalance_only` remain interface-reserved and not live-enabled yet.
 - `strategy.hedge_enabled` is `false`; it gates future non-arbitrage hedge modes.
 - `strategy.max_net_exposure_usd`, `strategy.max_predict_usage_pct`, and `strategy.min_profit_after_hedge_fee` are strategy-level guards above venue/risk checks.
 - `simulation_edge` uses basic Monte Carlo probability, 95% confidence intervals, and conservative edge checks; it emits plans with `executable=false`.
-- `simple_market_maker` uses the same lightweight Monte Carlo digital model to produce post-only `BUY YES` and synthetic `YES ask` via `BUY NO` quotes, applies inventory skew and stale/depth/spread gates, and defaults to `live_trading_enabled=false`.
+- `simple_market_maker` uses the same lightweight Monte Carlo digital model to produce post-only `BUY YES` and synthetic `YES ask` via `BUY NO` quotes, applies inventory skew and stale/depth/spread gates, and is frozen as experimental dry-run only. It defaults to `enabled=false` and `live_trading_enabled=false`; current Predict execution does not use it.
+- `hedge` config enables the v0.2 dry-run exposure hedge core. It defaults to `enabled=true`, `dry_run=true`, `live_trading_enabled=false`, `require_same_event_key=true`, and `allow_correlated_hedge=false`.
 - `dry_run` can boot without real trading keys.
 - `live` rejects startup unless Predict API key plus Polymarket private key, funder, L2 API key, L2 API secret, and passphrase are present.
 - The pino logger redacts private keys, JWTs, API keys, API secrets, tokens, passphrases, and authorization fields.
@@ -224,6 +227,28 @@ net_profit_usd = shares * profit_per_share - fixed_costs_usd
 `predict_effective_price` and `polymarket_effective_price` already include taker fee estimates, consumed orderbook depth, slippage reserve, and latency reserve. The trade is rejected unless both `profit_per_share > 0` and `net_profit_usd > min_net_profit_usd`.
 
 The strategy layer then treats the result as `pure_arbitrage`. `simulation_edge` and `simple_market_maker` are registered as dry-run signal-only strategies, and future executable hedge modes are routed through `StrategyEngine` / `HedgeEngine` / `StrategyRiskEngine` instead of being hard-coded into the execution coordinator.
+
+## Exposure Hedge v0.2
+
+`exposure_hedge` is the current hedge-only core and remains dry-run only. It measures Predict inventory by event:
+
+```text
+netExposureUsd = totalYES - totalNO
+```
+
+Positive net exposure plans a Polymarket `NO` hedge; negative net exposure plans a `YES` hedge. The first version only matches candidate hedge markets with the same `eventKey`; correlated hedge markets are rejected.
+
+The dry-run hedge size is:
+
+```text
+min(
+  abs(netExposureUsd) * hedge_ratio,
+  max_hedge_order_usd,
+  candidate.depthUsd * max_depth_usage_pct
+)
+```
+
+The planner rejects disabled hedge mode, live hedge mode, stale market data, wide spread, shallow depth, too-small or too-large hedge size, event-key mismatch, and disallowed venues. Even if a caller marks an `EXPOSURE_HEDGE` signal as executable, the execution coordinator refuses to place an order for it in v0.2.
 
 ## Order Sizing
 

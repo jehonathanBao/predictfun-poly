@@ -21,6 +21,18 @@ describe("ExecutionCoordinator strategy action guard", () => {
     expect(polymarketPlaceOrder).not.toHaveBeenCalled();
   });
 
+  it("does not submit exposure hedge signals as real orders", async () => {
+    const { coordinator, predictPlaceOrder, polymarketPlaceOrder } = coordinatorFixture({
+      strategyDecision: exposureHedgeDecision(true)
+    });
+
+    const result = await coordinator.runOnce();
+
+    expect(result.executed).toBe(0);
+    expect(predictPlaceOrder).not.toHaveBeenCalled();
+    expect(polymarketPlaceOrder).not.toHaveBeenCalled();
+  });
+
   it("submits orders only when the strategy action is OPEN_PURE_ARBITRAGE", async () => {
     const { coordinator, predictPlaceOrder, polymarketPlaceOrder } = coordinatorFixture({
       strategyDecision: openPureArbitrageDecision()
@@ -209,6 +221,37 @@ function simpleMarketMakerDecision(executable: boolean): StrategyDecision {
             { side: "BUY", outcome: "YES", limitPrice: 0.49, sizeUsd: d("5") },
             { side: "BUY", outcome: "NO", limitPrice: 0.49, sizeUsd: d("5") }
           ]
+        }
+      }
+    }
+  };
+}
+
+function exposureHedgeDecision(executable: boolean): StrategyDecision {
+  return {
+    accepted: true,
+    mode: "exposure_hedge",
+    reasons: [],
+    plan: {
+      mode: "exposure_hedge",
+      action: "EXPOSURE_HEDGE",
+      legs: [],
+      expectedNetExposureUsd: d("90"),
+      expectedProfitAfterHedgeFee: ZERO,
+      metadata: {
+        exposureHedge: {
+          type: "EXPOSURE_HEDGE",
+          executable,
+          dryRun: true,
+          hedgeOrder: {
+            venue: "polymarket",
+            marketId: "poly-btc-1h",
+            side: "NO",
+            action: "BUY",
+            limitPrice: 0.42,
+            sizeUsd: d("10"),
+            postOnly: true
+          }
         }
       }
     }

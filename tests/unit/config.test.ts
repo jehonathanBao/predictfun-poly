@@ -20,7 +20,7 @@ function rawConfig(mode: "dry_run" | "live" = "dry_run") {
       paths: 100000
     },
     simple_market_maker: {
-      enabled: true,
+      enabled: false,
       live_trading_enabled: false,
       n_paths: 20000,
       annualized_vol: 0.65,
@@ -39,6 +39,24 @@ function rawConfig(mode: "dry_run" | "live" = "dry_run") {
       min_seconds_to_expiry: 60,
       min_locked_edge: 0.004,
       quote_ttl_ms: 1500,
+      post_only: true
+    },
+    hedge: {
+      enabled: true,
+      dry_run: true,
+      hedge_ratio: 0.5,
+      max_hedge_order_usd: 10,
+      min_hedge_order_usd: 1,
+      max_net_exposure_usd: 25,
+      max_predict_usage_pct: 0.30,
+      max_spread: 0.035,
+      min_depth_usd: 20,
+      max_depth_usage_pct: 0.25,
+      max_market_data_age_ms: 2000,
+      require_same_event_key: true,
+      allow_correlated_hedge: false,
+      allowed_venues: ["polymarket", "predictfun"],
+      live_trading_enabled: false,
       post_only: true
     },
     market: {
@@ -151,7 +169,9 @@ describe("config loading", () => {
     expect(config.market.allowedResolutionSources).toContain("BINANCE_BTC_USDT");
     expect(config.strategy.strategyMode).toBe("pure_arbitrage");
     expect(config.simulationEdge.sigma).toBe(0.2);
+    expect(config.simpleMarketMaker.enabled).toBe(false);
     expect(config.simpleMarketMaker.liveTradingEnabled).toBe(false);
+    expect(config.hedge.dryRun).toBe(true);
   });
 
   it("allows dry_run without live private keys", () => {
@@ -245,6 +265,32 @@ describe("config loading", () => {
     expect(config.simpleMarketMaker.maxOrderUsd.toString()).toBe("7.5");
     expect(config.simpleMarketMaker.maxInventoryUsd.toString()).toBe("30");
     expect(config.simpleMarketMaker.nPaths).toBe(3000);
+  });
+
+  it("loads exposure hedge env settings in dry_run", () => {
+    const config = loadConfigFromEnv({
+      STRATEGY_MODE: "exposure_hedge",
+      HEDGE_CORE_ENABLED: "true",
+      HEDGE_RATIO: "0.25",
+      HEDGE_MAX_ORDER_USD: "12.50",
+      HEDGE_MAX_NET_EXPOSURE_USD: "40",
+      HEDGE_ALLOWED_VENUES: "polymarket"
+    });
+
+    expect(config.strategy.strategyMode).toBe("exposure_hedge");
+    expect(config.hedge.enabled).toBe(true);
+    expect(config.hedge.hedgeRatio).toBe(0.25);
+    expect(config.hedge.maxHedgeOrderUsd.toString()).toBe("12.5");
+    expect(config.hedge.maxNetExposureUsd.toString()).toBe("40");
+    expect(config.hedge.allowedVenues).toEqual(["polymarket"]);
+    expect(config.hedge.liveTradingEnabled).toBe(false);
+  });
+
+  it("rejects live hedge execution flags in v0.2", () => {
+    const config = rawConfig();
+    config.hedge.live_trading_enabled = true;
+
+    expect(() => normalizeConfig(config, {})).toThrow(/dry-run only/);
   });
 });
 

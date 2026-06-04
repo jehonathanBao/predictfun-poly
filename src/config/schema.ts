@@ -74,6 +74,24 @@ export const rawConfigSchema = z.object({
     quote_ttl_ms: z.number().int().positive(),
     post_only: z.boolean()
   }),
+  hedge: z.object({
+    enabled: z.boolean(),
+    dry_run: z.boolean(),
+    hedge_ratio: z.number().positive().max(1),
+    max_hedge_order_usd: decimalValue.refine((value) => value.gt(0), "must be positive"),
+    min_hedge_order_usd: decimalValue.refine((value) => value.gt(0), "must be positive"),
+    max_net_exposure_usd: decimalValue.refine((value) => value.gte(0), "must be non-negative"),
+    max_predict_usage_pct: decimalValue.refine((value) => value.gt(0) && value.lte(1), "must be in (0, 1]"),
+    max_spread: z.number().positive(),
+    min_depth_usd: decimalValue.refine((value) => value.gt(0), "must be positive"),
+    max_depth_usage_pct: z.number().positive().max(1),
+    max_market_data_age_ms: z.number().int().positive(),
+    require_same_event_key: z.boolean(),
+    allow_correlated_hedge: z.boolean(),
+    allowed_venues: z.array(z.enum(["polymarket", "predictfun"])).min(1).default(["polymarket", "predictfun"]),
+    live_trading_enabled: z.boolean(),
+    post_only: z.boolean()
+  }),
   market: z.object({
     asset: z.literal("BTC"),
     allowed_market_family: z.array(z.enum(["BTC_UP_DOWN"])).min(1),
@@ -215,6 +233,24 @@ export interface AppConfig {
     quoteTtlMs: number;
     postOnly: boolean;
   };
+  hedge: {
+    enabled: boolean;
+    dryRun: boolean;
+    hedgeRatio: number;
+    maxHedgeOrderUsd: D;
+    minHedgeOrderUsd: D;
+    maxNetExposureUsd: D;
+    maxPredictUsagePct: D;
+    maxSpread: number;
+    minDepthUsd: D;
+    maxDepthUsagePct: number;
+    maxMarketDataAgeMs: number;
+    requireSameEventKey: boolean;
+    allowCorrelatedHedge: boolean;
+    allowedVenues: readonly ("polymarket" | "predictfun")[];
+    liveTradingEnabled: boolean;
+    postOnly: boolean;
+  };
   market: {
     asset: "BTC";
     allowedMarketFamily: readonly "BTC_UP_DOWN"[];
@@ -330,6 +366,24 @@ export function normalizeConfig(rawInput: unknown, env: NodeJS.ProcessEnv = proc
       quoteTtlMs: raw.simple_market_maker.quote_ttl_ms,
       postOnly: raw.simple_market_maker.post_only
     },
+    hedge: {
+      enabled: raw.hedge.enabled,
+      dryRun: raw.hedge.dry_run,
+      hedgeRatio: raw.hedge.hedge_ratio,
+      maxHedgeOrderUsd: raw.hedge.max_hedge_order_usd,
+      minHedgeOrderUsd: raw.hedge.min_hedge_order_usd,
+      maxNetExposureUsd: raw.hedge.max_net_exposure_usd,
+      maxPredictUsagePct: raw.hedge.max_predict_usage_pct,
+      maxSpread: raw.hedge.max_spread,
+      minDepthUsd: raw.hedge.min_depth_usd,
+      maxDepthUsagePct: raw.hedge.max_depth_usage_pct,
+      maxMarketDataAgeMs: raw.hedge.max_market_data_age_ms,
+      requireSameEventKey: raw.hedge.require_same_event_key,
+      allowCorrelatedHedge: raw.hedge.allow_correlated_hedge,
+      allowedVenues: raw.hedge.allowed_venues,
+      liveTradingEnabled: raw.hedge.live_trading_enabled,
+      postOnly: raw.hedge.post_only
+    },
     market: {
       asset: raw.market.asset,
       allowedMarketFamily: raw.market.allowed_market_family,
@@ -423,7 +477,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AppConf
       paths: numberEnv(env.SIMULATION_EDGE_PATHS, 100000)
     },
     simple_market_maker: {
-      enabled: parseBool(env.SIMPLE_MARKET_MAKER_ENABLED, true),
+      enabled: parseBool(env.SIMPLE_MARKET_MAKER_ENABLED, false),
       live_trading_enabled: parseBool(env.SIMPLE_MARKET_MAKER_LIVE_TRADING_ENABLED, false),
       n_paths: numberEnv(env.SIMPLE_MARKET_MAKER_N_PATHS, 20000),
       annualized_vol: floatEnv(env.SIMPLE_MARKET_MAKER_ANNUALIZED_VOL, 0.65),
@@ -443,6 +497,24 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AppConf
       min_locked_edge: floatEnv(env.SIMPLE_MARKET_MAKER_MIN_LOCKED_EDGE, 0.004),
       quote_ttl_ms: numberEnv(env.SIMPLE_MARKET_MAKER_QUOTE_TTL_MS, 1500),
       post_only: parseBool(env.SIMPLE_MARKET_MAKER_POST_ONLY, true)
+    },
+    hedge: {
+      enabled: parseBool(env.HEDGE_CORE_ENABLED ?? env.HEDGE_ENABLED, true),
+      dry_run: parseBool(env.HEDGE_DRY_RUN, true),
+      hedge_ratio: floatEnv(env.HEDGE_RATIO, 0.5),
+      max_hedge_order_usd: env.HEDGE_MAX_ORDER_USD ?? "10.00",
+      min_hedge_order_usd: env.HEDGE_MIN_ORDER_USD ?? "1.00",
+      max_net_exposure_usd: env.HEDGE_MAX_NET_EXPOSURE_USD ?? "25.00",
+      max_predict_usage_pct: env.HEDGE_MAX_PREDICT_USAGE_PCT ?? "0.30",
+      max_spread: floatEnv(env.HEDGE_MAX_SPREAD, 0.035),
+      min_depth_usd: env.HEDGE_MIN_DEPTH_USD ?? "20.00",
+      max_depth_usage_pct: floatEnv(env.HEDGE_MAX_DEPTH_USAGE_PCT, 0.25),
+      max_market_data_age_ms: numberEnv(env.HEDGE_MAX_MARKET_DATA_AGE_MS, 2000),
+      require_same_event_key: parseBool(env.HEDGE_REQUIRE_SAME_EVENT_KEY, true),
+      allow_correlated_hedge: parseBool(env.HEDGE_ALLOW_CORRELATED_HEDGE, false),
+      allowed_venues: hedgeAllowedVenuesEnv(env.HEDGE_ALLOWED_VENUES),
+      live_trading_enabled: parseBool(env.HEDGE_LIVE_TRADING_ENABLED, false),
+      post_only: parseBool(env.HEDGE_POST_ONLY, true)
     },
     market: {
       asset: "BTC",
@@ -545,6 +617,15 @@ export function assertRuntimeConfig(config: AppConfig): void {
   if (config.simpleMarketMaker.maxQuoteSpread < config.simpleMarketMaker.minQuoteSpread) {
     throw new Error("simple_market_maker.max_quote_spread must be greater than or equal to min_quote_spread");
   }
+  if (config.hedge.minHedgeOrderUsd.gt(config.hedge.maxHedgeOrderUsd)) {
+    throw new Error("hedge.min_hedge_order_usd must be less than or equal to max_hedge_order_usd");
+  }
+  if (config.hedge.liveTradingEnabled || !config.hedge.dryRun) {
+    throw new Error("hedge v0.2 is dry-run only; set hedge.live_trading_enabled=false and hedge.dry_run=true");
+  }
+  if (config.hedge.requireSameEventKey && config.hedge.allowCorrelatedHedge) {
+    throw new Error("hedge correlated matching is disabled in v0.2; set allow_correlated_hedge=false");
+  }
   if (config.enableLiveTrading && config.strategy.strategyMode !== "pure_arbitrage") {
     throw new Error("live mode currently supports only strategy.strategy_mode=pure_arbitrage");
   }
@@ -610,6 +691,21 @@ function strategyModeEnv(
   throw new Error(
     "STRATEGY_MODE must be pure_arbitrage, hedge_arbitrage, exposure_hedge, rebalance_only, simulation_edge, or simple_market_maker"
   );
+}
+
+function hedgeAllowedVenuesEnv(value: string | undefined): ("polymarket" | "predictfun")[] {
+  if (value === undefined || value.trim() === "") return ["polymarket", "predictfun"];
+  const venues = value
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item !== "");
+  if (venues.length === 0) return ["polymarket", "predictfun"];
+  for (const venue of venues) {
+    if (venue !== "polymarket" && venue !== "predictfun") {
+      throw new Error("HEDGE_ALLOWED_VENUES must contain only polymarket and/or predictfun");
+    }
+  }
+  return [...new Set(venues)] as ("polymarket" | "predictfun")[];
 }
 
 function requiredLiveSecretEnvNames(config: AppConfig): readonly { envName: string; value: string | undefined }[] {

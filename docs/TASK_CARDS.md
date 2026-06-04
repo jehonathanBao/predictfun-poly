@@ -378,6 +378,41 @@ Codex 指令：
 - 无 edge 时输出 `No conservative edge`。
 - `StrategyEngine` 能通过 `strategy_mode=simulation_edge` 注册并返回 dry-run signal。
 
+## S04 - Exposure Hedge Dry-Run Core
+
+Goal: keep `simple_market_maker` frozen and add a hedge-only dry-run core for existing Predict exposure.
+
+Scope:
+
+- Keep `simple_market_maker.enabled=false` and `simple_market_maker.live_trading_enabled=false` by default.
+- Preserve execution-guard tests for `SIMPLE_MARKET_MAKER_QUOTES`.
+- Use existing `strategy.strategy_mode=exposure_hedge`; do not introduce a new market-making strategy name.
+- Implement `src/strategy/exposure-hedge.ts`, `src/hedge/exposure-calculator.ts`, `src/hedge/hedge-planner.ts`, `src/hedge/hedge-market-matcher.ts`, and `src/risk/hedge-risk.ts`.
+- First version is dry-run only and returns action type `EXPOSURE_HEDGE`, `executable=false`, and `dryRun=true`.
+
+Exposure rules:
+
+- YES exposure is positive; NO exposure is negative.
+- `netExposureUsd = totalYES - totalNO`.
+- Reject exposure inside the configured limit with `rejectReason="exposure_within_limit"`.
+- Positive net exposure hedges with `NO`; negative net exposure hedges with `YES`.
+- Hedge size is `min(abs(netExposureUsd) * hedge_ratio, max_hedge_order_usd, candidate.depthUsd * max_depth_usage_pct)`.
+- v0.2 requires the same `eventKey`; `allow_correlated_hedge=false`.
+- Missing same-event candidates reject with `rejectReason="no_matching_hedge_market"`.
+
+Risk gates:
+
+- Reject when hedge mode is disabled.
+- Reject `hedge.live_trading_enabled=true`; v0.2 is not live hedge.
+- Reject stale data, too-wide spread, shallow depth, hedge size below min, hedge size above max, event-key mismatch, and venue not allowed.
+- `ExecutionCoordinator` must not call `placeOrder` for `EXPOSURE_HEDGE`, even if the signal is malformed with `executable=true`.
+
+Acceptance:
+
+- `pnpm test`
+- `pnpm typecheck`
+- `pnpm lint`
+
 ## S03 - Simple Market Maker Dry-Run Strategy
 
 目标：实现简化版 `simple_market_maker` 策略，只输出双边做市报价计划，不真实下单。

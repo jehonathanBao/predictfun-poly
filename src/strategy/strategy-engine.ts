@@ -1,4 +1,5 @@
 import { PureArbitrageStrategy, type PureArbitrageStrategyInput } from "./arbitrage-basic.js";
+import { ExposureHedgeStrategy, type ExposureHedgeStrategyInput } from "./exposure-hedge.js";
 import { SimulationEdgeStrategy, type SimulationEdgeConfig } from "./simulation-edge.js";
 import {
   SimpleMarketMakerStrategy,
@@ -22,11 +23,13 @@ export interface StrategyEngineInput {
     config?: SimpleMarketMakerConfig;
     nowMs?: number;
   };
+  exposureHedge?: ExposureHedgeStrategyInput;
 }
 
 export class StrategyEngine {
   constructor(
     private readonly pureArbitrage = new PureArbitrageStrategy(),
+    private readonly exposureHedge = new ExposureHedgeStrategy(),
     private readonly simulationEdge = new SimulationEdgeStrategy(),
     private readonly simpleMarketMaker = new SimpleMarketMakerStrategy()
   ) {}
@@ -42,8 +45,9 @@ export class StrategyEngine {
         return this.simulationEdge.evaluate(input.simulationEdge ?? {});
       case "simple_market_maker":
         return this.simpleMarketMaker.evaluate(input.simpleMarketMaker ?? {});
-      case "hedge_arbitrage":
       case "exposure_hedge":
+        return this.exposureHedge.evaluate(input.exposureHedge ?? {});
+      case "hedge_arbitrage":
       case "rebalance_only":
         return {
           accepted: false,

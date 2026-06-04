@@ -76,7 +76,7 @@ describe("StrategyEngine", () => {
 
   it("does not execute future hedge modes before implementation", () => {
     const decision = new StrategyEngine().evaluate({
-      config: config({ strategyMode: "exposure_hedge", hedgeEnabled: true })
+      config: config({ strategyMode: "rebalance_only", hedgeEnabled: true })
     });
 
     expect(decision.accepted).toBe(false);

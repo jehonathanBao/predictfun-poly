@@ -15,11 +15,24 @@ Strategy risk:
 
 - live trading currently supports only `pure_arbitrage`,
 - `simulation_edge` is dry-run signal-only and must not submit orders,
-- `simple_market_maker` is dry-run signal-only by default and must not submit orders through the arbitrage execution coordinator,
-- `hedge_arbitrage`, `exposure_hedge`, and `rebalance_only` are reserved interfaces until separately implemented and tested,
+- `simple_market_maker` is frozen as experimental dry-run only, defaults to disabled, and must not submit orders through the arbitrage execution coordinator,
+- `exposure_hedge` is implemented as a dry-run hedge-only core; it emits `EXPOSURE_HEDGE` plans with `dryRun=true` and must not submit orders in v0.2,
+- `hedge_arbitrage` and `rebalance_only` are reserved interfaces until separately implemented and tested,
 - `min_profit_after_hedge_fee` must pass after the arb engine's fee/buffer checks,
 - `max_predict_usage_pct` is a strategy-level guard in addition to the Predict 30% account cap,
 - `max_net_exposure_usd` caps aggregate strategy exposure before future hedge modes can open more risk.
+
+Exposure hedge risk:
+
+- `hedge.live_trading_enabled=true` is rejected because v0.2 is dry-run only,
+- same-event hedging is required by default through `require_same_event_key=true`,
+- correlated hedge candidates are rejected while `allow_correlated_hedge=false`,
+- net exposure is calculated as `totalYES - totalNO`,
+- positive net exposure can only plan a `NO` hedge; negative net exposure can only plan a `YES` hedge,
+- exposure within `hedge.max_net_exposure_usd` is rejected with `exposure_within_limit`,
+- missing same-event hedge candidates are rejected with `no_matching_hedge_market`,
+- stale market data, spread above `hedge.max_spread`, depth below `hedge.min_depth_usd`, disallowed venues, and hedge sizes outside configured min/max bounds are rejected before a plan is emitted,
+- `EXPOSURE_HEDGE` signals are blocked by the execution coordinator even if a malformed caller sets `executable=true`.
 
 Every quote must be rejected unless both are true:
 

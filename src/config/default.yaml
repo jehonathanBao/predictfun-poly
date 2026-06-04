@@ -14,7 +14,7 @@ simulation_edge:
   paths: 100000
 
 simple_market_maker:
-  enabled: true
+  enabled: false
   live_trading_enabled: false
   n_paths: 20000
   annualized_vol: 0.65
@@ -33,6 +33,26 @@ simple_market_maker:
   min_seconds_to_expiry: 60
   min_locked_edge: 0.004
   quote_ttl_ms: 1500
+  post_only: true
+
+hedge:
+  enabled: true
+  dry_run: true
+  hedge_ratio: 0.5
+  max_hedge_order_usd: 10
+  min_hedge_order_usd: 1
+  max_net_exposure_usd: 25
+  max_predict_usage_pct: 0.30
+  max_spread: 0.035
+  min_depth_usd: 20
+  max_depth_usage_pct: 0.25
+  max_market_data_age_ms: 2000
+  require_same_event_key: true
+  allow_correlated_hedge: false
+  allowed_venues:
+    - "polymarket"
+    - "predictfun"
+  live_trading_enabled: false
   post_only: true
 
 market:
