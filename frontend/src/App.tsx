@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { HedgePlanTable } from "./components/HedgePlanTable";
+import { WalletPanel } from "./components/WalletPanel";
 import type { HedgePlan } from "./types";
 
 type FilterMode = "all" | "approved" | "rejected";
@@ -73,6 +74,8 @@ export function App() {
         <Metric label="Hedge Size" value={`$${formatNumber(totalHedgeSize)}`} />
         <Metric label="Last Update" value={lastUpdated} />
       </section>
+
+      <WalletPanel />
 
       <section className="controlBand" aria-label="plan filters">
         <div className="segmentedControl">

@@ -27,3 +27,18 @@ export interface HedgePlan {
   riskCodes: readonly string[];
   riskApproved: boolean;
 }
+
+export interface WalletStatus {
+  mode: "dry_run";
+  liveTradingEnabled: false;
+  readOnly: true;
+  expectedChainId: number | null;
+  expectedChainName: string | null;
+  backendTradingAddressMasked?: string;
+  secretsLoaded: boolean;
+  canExecuteHedge: false;
+  allowedActions: readonly ["OPEN_PURE_ARBITRAGE"];
+  blockedActions: readonly ["EXPOSURE_HEDGE", "SIMPLE_MARKET_MAKER_QUOTES"];
+  allowFrontendSigning: false;
+  allowFrontendTransactions: false;
+}

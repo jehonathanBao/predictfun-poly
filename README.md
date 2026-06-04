@@ -297,9 +297,32 @@ Run the local dashboard to inspect Predict exposure hedge signals:
 .\start-frontend.ps1
 ```
 
-The script starts the dry-run API on `http://localhost:3070`, starts the Vite
+For a double-click Windows launcher, use:
+
+```text
+start-dashboard.bat
+```
+
+To create a desktop shortcut for the launcher:
+
+```powershell
+.\create-desktop-shortcut.ps1
+```
+
+The launcher starts the dry-run API on `http://localhost:3070`, starts the Vite
 frontend on `http://localhost:5173`, and opens the dashboard. The API endpoint
 is `GET /api/hedge-plans`.
+
+The dashboard also exposes a read-only wallet status endpoint:
+
+```text
+GET /api/wallet-status
+```
+
+Wallet status is observation-only. It may show the connected browser wallet
+address, chain, balance, masked backend trading address, address match state,
+and network warnings. It does not sign messages, send transactions, expose
+private keys, expose mnemonics, expose API secrets, or enable hedge execution.
 
 To point the dashboard API at a JSON snapshot instead of the built-in sample
 plans, set `HEDGE_DASHBOARD_SNAPSHOT` to a file containing either an array of

@@ -128,6 +128,132 @@ h1 {
   margin-bottom: 16px;
 }
 
+.walletPanel {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.walletHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.walletHeader h2 {
+  color: #101828;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.walletHeader p {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.walletMode {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: #126143;
+  background: #edf8f3;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.walletGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.walletItem {
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.walletItem span {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.walletItem strong {
+  display: block;
+  margin-top: 7px;
+  color: #101828;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.walletBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.walletBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.walletBadge.safe {
+  color: #126143;
+  background: #edf8f3;
+}
+
+.walletBadge.warn {
+  color: #9f2b1f;
+  background: #fff1ef;
+}
+
+.walletWarning {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #f0b8ad;
+  border-radius: 8px;
+  color: #912018;
+  background: #fff1ef;
+  font-size: 13px;
+}
+
+.connectButton {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #cfd7e2;
+  border-radius: 8px;
+  color: #101828;
+  background: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.connectButton:disabled {
+  color: #98a2b3;
+  cursor: not-allowed;
+  background: #f2f4f7;
+}
+
 .segmentedControl {
   display: inline-grid;
   grid-template-columns: repeat(3, 96px);
@@ -370,6 +496,10 @@ tbody tr:last-child td {
     flex-direction: column;
   }
 
+  .walletGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .detailPane {
     width: 100%;
     flex-basis: auto;
@@ -398,6 +528,10 @@ tbody tr:last-child td {
 
   .guardRail {
     justify-content: flex-start;
+  }
+
+  .walletGrid {
+    grid-template-columns: 1fr;
   }
 
   .detailList {

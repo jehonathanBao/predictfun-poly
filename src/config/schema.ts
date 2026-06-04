@@ -30,6 +30,36 @@ const decimalValue = z.union([z.string().min(1), z.number()]).superRefine((value
 
 export const rawConfigSchema = z.object({
   mode: z.enum(["dry_run", "live"]).default("dry_run"),
+  dashboard: z.object({
+    enabled: z.boolean().default(true),
+    port: z.number().int().positive().default(3070),
+    frontend_port: z.number().int().positive().default(5173),
+    read_only: z.literal(true).default(true)
+  }).default({
+    enabled: true,
+    port: 3070,
+    frontend_port: 5173,
+    read_only: true
+  }),
+  wallet: z.object({
+    enabled: z.boolean().default(true),
+    read_only: z.literal(true).default(true),
+    expected_chain_id: z.number().int().positive().nullable().default(137),
+    expected_chain_name: z.string().min(1).nullable().default("Polygon"),
+    expose_backend_address: z.boolean().default(true),
+    mask_backend_address: z.boolean().default(true),
+    allow_frontend_signing: z.literal(false).default(false),
+    allow_frontend_transactions: z.literal(false).default(false)
+  }).default({
+    enabled: true,
+    read_only: true,
+    expected_chain_id: 137,
+    expected_chain_name: "Polygon",
+    expose_backend_address: true,
+    mask_backend_address: true,
+    allow_frontend_signing: false,
+    allow_frontend_transactions: false
+  }),
   strategy: z.object({
     strategy_mode: z
       .enum([
@@ -192,6 +222,22 @@ export interface AppConfig {
   mode: "dry_run" | "live";
   dryRun: boolean;
   enableLiveTrading: boolean;
+  dashboard: {
+    enabled: boolean;
+    port: number;
+    frontendPort: number;
+    readOnly: true;
+  };
+  wallet: {
+    enabled: boolean;
+    readOnly: true;
+    expectedChainId: number | null;
+    expectedChainName: string | null;
+    exposeBackendAddress: boolean;
+    maskBackendAddress: boolean;
+    allowFrontendSigning: false;
+    allowFrontendTransactions: false;
+  };
   strategy: {
     strategyMode:
       | "pure_arbitrage"
@@ -331,6 +377,22 @@ export function normalizeConfig(rawInput: unknown, env: NodeJS.ProcessEnv = proc
     mode: raw.mode,
     dryRun: raw.mode === "dry_run",
     enableLiveTrading: raw.mode === "live",
+    dashboard: {
+      enabled: raw.dashboard.enabled,
+      port: raw.dashboard.port,
+      frontendPort: raw.dashboard.frontend_port,
+      readOnly: raw.dashboard.read_only
+    },
+    wallet: {
+      enabled: raw.wallet.enabled,
+      readOnly: raw.wallet.read_only,
+      expectedChainId: raw.wallet.expected_chain_id,
+      expectedChainName: raw.wallet.expected_chain_name,
+      exposeBackendAddress: raw.wallet.expose_backend_address,
+      maskBackendAddress: raw.wallet.mask_backend_address,
+      allowFrontendSigning: raw.wallet.allow_frontend_signing,
+      allowFrontendTransactions: raw.wallet.allow_frontend_transactions
+    },
     strategy: {
       strategyMode: raw.strategy.strategy_mode,
       hedgeEnabled: raw.strategy.hedge_enabled,
@@ -463,6 +525,22 @@ export function normalizeConfig(rawInput: unknown, env: NodeJS.ProcessEnv = proc
 export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return normalizeConfig({
     mode: modeEnv(env),
+    dashboard: {
+      enabled: parseBool(env.DASHBOARD_ENABLED, true),
+      port: numberEnv(env.DASHBOARD_PORT, 3070),
+      frontend_port: numberEnv(env.DASHBOARD_FRONTEND_PORT, 5173),
+      read_only: true
+    },
+    wallet: {
+      enabled: parseBool(env.WALLET_ENABLED, true),
+      read_only: true,
+      expected_chain_id: nullableNumberEnv(env.WALLET_EXPECTED_CHAIN_ID, 137),
+      expected_chain_name: nullableStringEnv(env.WALLET_EXPECTED_CHAIN_NAME, "Polygon"),
+      expose_backend_address: parseBool(env.WALLET_EXPOSE_BACKEND_ADDRESS, true),
+      mask_backend_address: parseBool(env.WALLET_MASK_BACKEND_ADDRESS, true),
+      allow_frontend_signing: false,
+      allow_frontend_transactions: false
+    },
     strategy: {
       strategy_mode: strategyModeEnv(env),
       hedge_enabled: parseBool(env.HEDGE_ENABLED, false),
@@ -659,6 +737,19 @@ function floatEnv(value: string | undefined, fallback: number): number {
   if (value === undefined || value.trim() === "") return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function nullableStringEnv(value: string | undefined, fallback: string | null): string | null {
+  if (value === undefined || value.trim() === "") return fallback;
+  const normalized = value.trim();
+  return normalized.toLowerCase() === "null" ? null : normalized;
+}
+
+function nullableNumberEnv(value: string | undefined, fallback: number | null): number | null {
+  const normalized = nullableStringEnv(value, fallback === null ? null : String(fallback));
+  if (normalized === null) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function modeEnv(env: NodeJS.ProcessEnv): "dry_run" | "live" {

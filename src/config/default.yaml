@@ -1,5 +1,21 @@
 mode: "dry_run"
 
+dashboard:
+  enabled: true
+  port: 3070
+  frontend_port: 5173
+  read_only: true
+
+wallet:
+  enabled: true
+  read_only: true
+  expected_chain_id: 137
+  expected_chain_name: "Polygon"
+  expose_backend_address: true
+  mask_backend_address: true
+  allow_frontend_signing: false
+  allow_frontend_transactions: false
+
 strategy:
   strategy_mode: "pure_arbitrage"
   hedge_enabled: false
