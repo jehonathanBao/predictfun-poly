@@ -314,6 +314,8 @@ describe("dashboard frontend safety copy", () => {
     const files = [
       "frontend/src/App.tsx",
       "frontend/src/components/AccountHealthPanel.tsx",
+      "frontend/src/components/DryRunSummaryPanel.tsx",
+      "frontend/src/components/ExposureTrendPanel.tsx",
       "frontend/src/components/HedgePlanTable.tsx",
       "frontend/src/components/RuntimeStatusPanel.tsx",
       "frontend/src/wallet/WalletPanel.tsx",
@@ -334,6 +336,8 @@ describe("dashboard frontend safety copy", () => {
     const files = [
       "frontend/src/App.tsx",
       "frontend/src/components/AccountHealthPanel.tsx",
+      "frontend/src/components/DryRunSummaryPanel.tsx",
+      "frontend/src/components/ExposureTrendPanel.tsx",
       "frontend/src/wallet/WalletPanel.tsx",
       "frontend/src/wallet/Web3Provider.tsx",
       "frontend/src/wallet/readOnlyWalletGuard.ts",

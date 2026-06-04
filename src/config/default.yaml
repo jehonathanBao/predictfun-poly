@@ -6,6 +6,8 @@ dashboard:
   frontend_port: 5173
   read_only: true
   stale_data_threshold_ms: 10000
+  dry_run_history_limit: 100
+  dry_run_summary_enabled: true
 
 wallet:
   enabled: true

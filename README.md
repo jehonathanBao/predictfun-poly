@@ -370,3 +370,16 @@ data/hedge-plans.history.jsonl
 Both runtime data files are gitignored. The storage layer sanitizes all plans
 back to `executable: false`, `dryRun: true`, `mode: "dry_run"`, and
 `liveTradingEnabled: false` before writing or serving dashboard data.
+
+Dry-run replay is available through:
+
+```text
+GET /api/dry-run-summary?limit=100
+```
+
+It reads `DASHBOARD_HISTORY_PATH` first, then
+`data/hedge-plans.history.jsonl`, and returns read-only summary fields for
+record counts, approved/rejected counts, reject reason distribution, risk code
+distribution, event exposure, and the recent exposure timeline. It does not
+return raw wallet material, API secrets, signers, tokens, or live execution
+state.

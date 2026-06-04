@@ -100,3 +100,35 @@ export interface AccountHealth {
   };
   warnings: readonly string[];
 }
+
+export interface DryRunTimelinePoint {
+  generatedAt: string;
+  planCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  maxAbsExposureUsd: number;
+}
+
+export interface DryRunEventExposure {
+  eventKey: string;
+  latestNetExposureUsd: number;
+  maxAbsExposureUsd: number;
+  observationCount: number;
+}
+
+export interface DryRunSummary {
+  schemaVersion: 1;
+  mode: "dry_run";
+  readOnly: true;
+  liveTradingEnabled: false;
+  generatedAt: string;
+  recordCount: number;
+  planCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  maxAbsExposureUsd: number;
+  rejectReasonCounts: Record<string, number>;
+  riskCodeCounts: Record<string, number>;
+  eventExposure: DryRunEventExposure[];
+  timeline: DryRunTimelinePoint[];
+}

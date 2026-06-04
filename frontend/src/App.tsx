@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccountHealthPanel } from "./components/AccountHealthPanel";
+import { DryRunSummaryPanel } from "./components/DryRunSummaryPanel";
+import { ExposureTrendPanel } from "./components/ExposureTrendPanel";
 import { HedgePlanTable } from "./components/HedgePlanTable";
 import { RuntimeStatusPanel } from "./components/RuntimeStatusPanel";
 import { WalletPanel } from "./wallet/WalletPanel";
-import type { DashboardStatus, HedgePlan, HedgePlanEnvelope } from "./types";
+import type { DashboardStatus, DryRunSummary, HedgePlan, HedgePlanEnvelope } from "./types";
 
 type FilterMode = "all" | "approved" | "rejected";
 
@@ -14,6 +16,7 @@ export function App() {
   const [plans, setPlans] = useState<HedgePlan[]>([]);
   const [dataEnvelope, setDataEnvelope] = useState<HedgePlanEnvelope>();
   const [runtimeStatus, setRuntimeStatus] = useState<DashboardStatus>();
+  const [dryRunSummary, setDryRunSummary] = useState<DryRunSummary>();
   const [selectedMarketId, setSelectedMarketId] = useState<string>();
   const [filter, setFilter] = useState<FilterMode>("all");
   const [lastUpdated, setLastUpdated] = useState<string>("never");
@@ -90,6 +93,10 @@ export function App() {
       <WalletPanel />
 
       <AccountHealthPanel />
+
+      <DryRunSummaryPanel onSummary={setDryRunSummary} />
+
+      <ExposureTrendPanel summary={dryRunSummary} />
 
       <section className="controlBand" aria-label="plan filters">
         <div className="segmentedControl">

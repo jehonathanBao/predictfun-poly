@@ -35,13 +35,17 @@ export const rawConfigSchema = z.object({
     port: z.number().int().positive().default(3070),
     frontend_port: z.number().int().positive().default(5173),
     read_only: z.literal(true).default(true),
-    stale_data_threshold_ms: z.number().int().positive().default(10_000)
+    stale_data_threshold_ms: z.number().int().positive().default(10_000),
+    dry_run_history_limit: z.number().int().positive().default(100),
+    dry_run_summary_enabled: z.boolean().default(true)
   }).default({
     enabled: true,
     port: 3070,
     frontend_port: 5173,
     read_only: true,
-    stale_data_threshold_ms: 10_000
+    stale_data_threshold_ms: 10_000,
+    dry_run_history_limit: 100,
+    dry_run_summary_enabled: true
   }),
   wallet: z.object({
     enabled: z.boolean().default(true),
@@ -230,6 +234,8 @@ export interface AppConfig {
     frontendPort: number;
     readOnly: true;
     staleDataThresholdMs: number;
+    dryRunHistoryLimit: number;
+    dryRunSummaryEnabled: boolean;
   };
   wallet: {
     enabled: boolean;
@@ -385,7 +391,9 @@ export function normalizeConfig(rawInput: unknown, env: NodeJS.ProcessEnv = proc
       port: raw.dashboard.port,
       frontendPort: raw.dashboard.frontend_port,
       readOnly: raw.dashboard.read_only,
-      staleDataThresholdMs: raw.dashboard.stale_data_threshold_ms
+      staleDataThresholdMs: raw.dashboard.stale_data_threshold_ms,
+      dryRunHistoryLimit: raw.dashboard.dry_run_history_limit,
+      dryRunSummaryEnabled: raw.dashboard.dry_run_summary_enabled
     },
     wallet: {
       enabled: raw.wallet.enabled,
@@ -534,7 +542,9 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AppConf
       port: numberEnv(env.DASHBOARD_PORT, 3070),
       frontend_port: numberEnv(env.DASHBOARD_FRONTEND_PORT, 5173),
       read_only: true,
-      stale_data_threshold_ms: numberEnv(env.DASHBOARD_STALE_DATA_THRESHOLD_MS, 10000)
+      stale_data_threshold_ms: numberEnv(env.DASHBOARD_STALE_DATA_THRESHOLD_MS, 10000),
+      dry_run_history_limit: numberEnv(env.DASHBOARD_DRY_RUN_HISTORY_LIMIT, 100),
+      dry_run_summary_enabled: parseBool(env.DASHBOARD_DRY_RUN_SUMMARY_ENABLED, true)
     },
     wallet: {
       enabled: parseBool(env.WALLET_ENABLED, true),

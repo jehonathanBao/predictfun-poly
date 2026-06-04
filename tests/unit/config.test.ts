@@ -169,6 +169,8 @@ describe("config loading", () => {
     expect(config.market.allowedResolutionSources).toContain("BINANCE_BTC_USDT");
     expect(config.strategy.strategyMode).toBe("pure_arbitrage");
     expect(config.dashboard.staleDataThresholdMs).toBe(10000);
+    expect(config.dashboard.dryRunHistoryLimit).toBe(100);
+    expect(config.dashboard.dryRunSummaryEnabled).toBe(true);
     expect(config.simulationEdge.sigma).toBe(0.2);
     expect(config.simpleMarketMaker.enabled).toBe(false);
     expect(config.simpleMarketMaker.liveTradingEnabled).toBe(false);
@@ -289,10 +291,14 @@ describe("config loading", () => {
 
   it("loads dashboard stale threshold env setting", () => {
     const config = loadConfigFromEnv({
-      DASHBOARD_STALE_DATA_THRESHOLD_MS: "25000"
+      DASHBOARD_STALE_DATA_THRESHOLD_MS: "25000",
+      DASHBOARD_DRY_RUN_HISTORY_LIMIT: "50",
+      DASHBOARD_DRY_RUN_SUMMARY_ENABLED: "false"
     });
 
     expect(config.dashboard.staleDataThresholdMs).toBe(25000);
+    expect(config.dashboard.dryRunHistoryLimit).toBe(50);
+    expect(config.dashboard.dryRunSummaryEnabled).toBe(false);
   });
 
   it("rejects live hedge execution flags in v0.2", () => {

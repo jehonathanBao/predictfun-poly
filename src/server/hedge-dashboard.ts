@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
+import { loadHedgeDryRunSummary } from "../analytics/hedge-dry-run-replay.js";
 import { buildAccountHealthResponse } from "./account-health.js";
 import { loadHedgePlansForDashboard } from "./dashboard-data-source.js";
 import { loadDashboardStatus } from "./dashboard-status.js";
@@ -53,6 +54,7 @@ export function createDashboardServer() {
 
 async function route(request: IncomingMessage, response: ServerResponse): Promise<void> {
   setCorsHeaders(response);
+  const url = new URL(request.url ?? "/", "http://localhost");
 
   if (request.method === "OPTIONS") {
     response.writeHead(204);
@@ -60,7 +62,7 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     return;
   }
 
-  if (request.url === "/api/health") {
+  if (url.pathname === "/api/health") {
     sendJson(response, 200, {
       ok: true,
       strategy: "EXPOSURE_HEDGE",
@@ -70,23 +72,28 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     return;
   }
 
-  if (request.url === "/api/hedge-plans") {
+  if (url.pathname === "/api/hedge-plans") {
     sendJson(response, 200, await loadHedgePlansForDashboard());
     return;
   }
 
-  if (request.url === "/api/dashboard-status") {
+  if (url.pathname === "/api/dashboard-status") {
     sendJson(response, 200, await loadDashboardStatus());
     return;
   }
 
-  if (request.url === "/api/wallet-status") {
+  if (url.pathname === "/api/wallet-status") {
     sendJson(response, 200, buildWalletStatusResponse(process.env));
     return;
   }
 
-  if (request.url === "/api/account-health") {
+  if (url.pathname === "/api/account-health") {
     sendJson(response, 200, buildAccountHealthResponse(process.env));
+    return;
+  }
+
+  if (url.pathname === "/api/dry-run-summary") {
+    sendJson(response, 200, await loadHedgeDryRunSummary({ limit: queryLimit(url) }));
     return;
   }
 
@@ -174,6 +181,13 @@ function nullableNumber(value: string | undefined, fallback: number | null): num
   if (normalized === null) return null;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function queryLimit(url: URL): number | undefined {
+  const raw = url.searchParams.get("limit");
+  if (raw === null || raw.trim() === "") return undefined;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function isMainModule(): boolean {
