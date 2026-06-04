@@ -8,6 +8,11 @@ dashboard:
   stale_data_threshold_ms: 10000
   dry_run_history_limit: 100
   dry_run_summary_enabled: true
+  alerts_enabled: true
+  max_exposure_alert_usd: 25
+  reject_reason_spike_threshold: 10
+  risk_code_spike_threshold: 10
+  report_enabled: true
 
 wallet:
   enabled: true

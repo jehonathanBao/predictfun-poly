@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccountHealthPanel } from "./components/AccountHealthPanel";
+import { DryRunAlertsPanel } from "./components/DryRunAlertsPanel";
+import { DryRunReportPanel } from "./components/DryRunReportPanel";
 import { DryRunSummaryPanel } from "./components/DryRunSummaryPanel";
 import { ExposureTrendPanel } from "./components/ExposureTrendPanel";
 import { HedgePlanTable } from "./components/HedgePlanTable";
@@ -94,9 +96,13 @@ export function App() {
 
       <AccountHealthPanel />
 
+      <DryRunAlertsPanel />
+
       <DryRunSummaryPanel onSummary={setDryRunSummary} />
 
       <ExposureTrendPanel summary={dryRunSummary} />
+
+      <DryRunReportPanel />
 
       <section className="controlBand" aria-label="plan filters">
         <div className="segmentedControl">

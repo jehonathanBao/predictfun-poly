@@ -2,6 +2,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { pathToFileURL } from "node:url";
 import { loadHedgeDryRunSummary } from "../analytics/hedge-dry-run-replay.js";
 import { buildAccountHealthResponse } from "./account-health.js";
+import {
+  loadDashboardDryRunAlerts,
+  loadDashboardDryRunReport,
+} from "./dashboard-alerts.js";
 import { loadHedgePlansForDashboard } from "./dashboard-data-source.js";
 import { loadDashboardStatus } from "./dashboard-status.js";
 
@@ -94,6 +98,16 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
 
   if (url.pathname === "/api/dry-run-summary") {
     sendJson(response, 200, await loadHedgeDryRunSummary({ limit: queryLimit(url) }));
+    return;
+  }
+
+  if (url.pathname === "/api/dry-run-alerts") {
+    sendJson(response, 200, await loadDashboardDryRunAlerts(queryLimit(url)));
+    return;
+  }
+
+  if (url.pathname === "/api/dry-run-report") {
+    sendJson(response, 200, await loadDashboardDryRunReport(queryLimit(url)));
     return;
   }
 

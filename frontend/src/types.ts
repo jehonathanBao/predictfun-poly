@@ -132,3 +132,40 @@ export interface DryRunSummary {
   eventExposure: DryRunEventExposure[];
   timeline: DryRunTimelinePoint[];
 }
+
+export type DryRunAlertSeverity = "info" | "warning" | "critical";
+
+export interface DryRunAlert {
+  code: string;
+  severity: DryRunAlertSeverity;
+  message: string;
+  value?: number;
+  threshold?: number;
+  count?: number;
+}
+
+export interface DryRunAlerts {
+  schemaVersion: 1;
+  mode: "dry_run";
+  readOnly: true;
+  liveTradingEnabled: false;
+  generatedAt: string;
+  severity: DryRunAlertSeverity;
+  alerts: DryRunAlert[];
+}
+
+export interface DryRunReport {
+  schemaVersion: 1;
+  mode: "dry_run";
+  readOnly: true;
+  liveTradingEnabled: false;
+  reportDate: string;
+  recordCount: number;
+  planCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  topRejectReasons: { code: string; count: number }[];
+  topRiskCodes: { code: string; count: number }[];
+  maxAbsExposureUsd: number;
+  recommendations: string[];
+}

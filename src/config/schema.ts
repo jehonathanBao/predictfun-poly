@@ -37,7 +37,12 @@ export const rawConfigSchema = z.object({
     read_only: z.literal(true).default(true),
     stale_data_threshold_ms: z.number().int().positive().default(10_000),
     dry_run_history_limit: z.number().int().positive().default(100),
-    dry_run_summary_enabled: z.boolean().default(true)
+    dry_run_summary_enabled: z.boolean().default(true),
+    alerts_enabled: z.boolean().default(true),
+    max_exposure_alert_usd: z.number().positive().default(25),
+    reject_reason_spike_threshold: z.number().int().positive().default(10),
+    risk_code_spike_threshold: z.number().int().positive().default(10),
+    report_enabled: z.boolean().default(true)
   }).default({
     enabled: true,
     port: 3070,
@@ -45,7 +50,12 @@ export const rawConfigSchema = z.object({
     read_only: true,
     stale_data_threshold_ms: 10_000,
     dry_run_history_limit: 100,
-    dry_run_summary_enabled: true
+    dry_run_summary_enabled: true,
+    alerts_enabled: true,
+    max_exposure_alert_usd: 25,
+    reject_reason_spike_threshold: 10,
+    risk_code_spike_threshold: 10,
+    report_enabled: true
   }),
   wallet: z.object({
     enabled: z.boolean().default(true),
@@ -236,6 +246,11 @@ export interface AppConfig {
     staleDataThresholdMs: number;
     dryRunHistoryLimit: number;
     dryRunSummaryEnabled: boolean;
+    alertsEnabled: boolean;
+    maxExposureAlertUsd: number;
+    rejectReasonSpikeThreshold: number;
+    riskCodeSpikeThreshold: number;
+    reportEnabled: boolean;
   };
   wallet: {
     enabled: boolean;
@@ -393,7 +408,12 @@ export function normalizeConfig(rawInput: unknown, env: NodeJS.ProcessEnv = proc
       readOnly: raw.dashboard.read_only,
       staleDataThresholdMs: raw.dashboard.stale_data_threshold_ms,
       dryRunHistoryLimit: raw.dashboard.dry_run_history_limit,
-      dryRunSummaryEnabled: raw.dashboard.dry_run_summary_enabled
+      dryRunSummaryEnabled: raw.dashboard.dry_run_summary_enabled,
+      alertsEnabled: raw.dashboard.alerts_enabled,
+      maxExposureAlertUsd: raw.dashboard.max_exposure_alert_usd,
+      rejectReasonSpikeThreshold: raw.dashboard.reject_reason_spike_threshold,
+      riskCodeSpikeThreshold: raw.dashboard.risk_code_spike_threshold,
+      reportEnabled: raw.dashboard.report_enabled
     },
     wallet: {
       enabled: raw.wallet.enabled,
@@ -544,7 +564,12 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AppConf
       read_only: true,
       stale_data_threshold_ms: numberEnv(env.DASHBOARD_STALE_DATA_THRESHOLD_MS, 10000),
       dry_run_history_limit: numberEnv(env.DASHBOARD_DRY_RUN_HISTORY_LIMIT, 100),
-      dry_run_summary_enabled: parseBool(env.DASHBOARD_DRY_RUN_SUMMARY_ENABLED, true)
+      dry_run_summary_enabled: parseBool(env.DASHBOARD_DRY_RUN_SUMMARY_ENABLED, true),
+      alerts_enabled: parseBool(env.DASHBOARD_ALERTS_ENABLED, true),
+      max_exposure_alert_usd: floatEnv(env.DASHBOARD_MAX_EXPOSURE_ALERT_USD, 25),
+      reject_reason_spike_threshold: numberEnv(env.DASHBOARD_REJECT_REASON_SPIKE_THRESHOLD, 10),
+      risk_code_spike_threshold: numberEnv(env.DASHBOARD_RISK_CODE_SPIKE_THRESHOLD, 10),
+      report_enabled: parseBool(env.DASHBOARD_REPORT_ENABLED, true)
     },
     wallet: {
       enabled: parseBool(env.WALLET_ENABLED, true),

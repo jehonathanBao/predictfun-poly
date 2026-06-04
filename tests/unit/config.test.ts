@@ -171,6 +171,11 @@ describe("config loading", () => {
     expect(config.dashboard.staleDataThresholdMs).toBe(10000);
     expect(config.dashboard.dryRunHistoryLimit).toBe(100);
     expect(config.dashboard.dryRunSummaryEnabled).toBe(true);
+    expect(config.dashboard.alertsEnabled).toBe(true);
+    expect(config.dashboard.maxExposureAlertUsd).toBe(25);
+    expect(config.dashboard.rejectReasonSpikeThreshold).toBe(10);
+    expect(config.dashboard.riskCodeSpikeThreshold).toBe(10);
+    expect(config.dashboard.reportEnabled).toBe(true);
     expect(config.simulationEdge.sigma).toBe(0.2);
     expect(config.simpleMarketMaker.enabled).toBe(false);
     expect(config.simpleMarketMaker.liveTradingEnabled).toBe(false);
@@ -293,12 +298,22 @@ describe("config loading", () => {
     const config = loadConfigFromEnv({
       DASHBOARD_STALE_DATA_THRESHOLD_MS: "25000",
       DASHBOARD_DRY_RUN_HISTORY_LIMIT: "50",
-      DASHBOARD_DRY_RUN_SUMMARY_ENABLED: "false"
+      DASHBOARD_DRY_RUN_SUMMARY_ENABLED: "false",
+      DASHBOARD_ALERTS_ENABLED: "false",
+      DASHBOARD_MAX_EXPOSURE_ALERT_USD: "40",
+      DASHBOARD_REJECT_REASON_SPIKE_THRESHOLD: "4",
+      DASHBOARD_RISK_CODE_SPIKE_THRESHOLD: "5",
+      DASHBOARD_REPORT_ENABLED: "false"
     });
 
     expect(config.dashboard.staleDataThresholdMs).toBe(25000);
     expect(config.dashboard.dryRunHistoryLimit).toBe(50);
     expect(config.dashboard.dryRunSummaryEnabled).toBe(false);
+    expect(config.dashboard.alertsEnabled).toBe(false);
+    expect(config.dashboard.maxExposureAlertUsd).toBe(40);
+    expect(config.dashboard.rejectReasonSpikeThreshold).toBe(4);
+    expect(config.dashboard.riskCodeSpikeThreshold).toBe(5);
+    expect(config.dashboard.reportEnabled).toBe(false);
   });
 
   it("rejects live hedge execution flags in v0.2", () => {

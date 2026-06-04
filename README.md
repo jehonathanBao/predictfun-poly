@@ -383,3 +383,22 @@ record counts, approved/rejected counts, reject reason distribution, risk code
 distribution, event exposure, and the recent exposure timeline. It does not
 return raw wallet material, API secrets, signers, tokens, or live execution
 state.
+
+Dry-run alerts and report exports are available through:
+
+```text
+GET /api/dry-run-alerts?limit=100
+GET /api/dry-run-report?limit=100
+```
+
+Alerts are generated from replay summary data for high exposure, stale history,
+reject reason spikes, and risk code spikes. Reports summarize the current
+dry-run replay window and are written to ignored files under `reports/`:
+
+```text
+reports/hedge-dry-run-summary.latest.json
+reports/hedge-dry-run-summary-YYYY-MM-DD.json
+```
+
+These endpoints also force `mode: "dry_run"`, `readOnly: true`, and
+`liveTradingEnabled: false`.

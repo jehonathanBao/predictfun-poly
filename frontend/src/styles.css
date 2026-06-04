@@ -404,7 +404,9 @@ h1 {
   background: #edf8f3;
 }
 
+.dryRunAlertsPanel,
 .dryRunSummaryPanel,
+.dryRunReportPanel,
 .trendPanel {
   margin-bottom: 16px;
   padding: 16px;
@@ -437,7 +439,8 @@ h1 {
 }
 
 .dryRunMode,
-.trendMode {
+.trendMode,
+.alertSeverity {
   display: inline-flex;
   align-items: center;
   min-height: 26px;
@@ -448,6 +451,16 @@ h1 {
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.alertSeverity.warning {
+  color: #9f2b1f;
+  background: #fff1ef;
+}
+
+.alertSeverity.critical {
+  color: #ffffff;
+  background: #9f2b1f;
 }
 
 .dryRunMetricGrid {
@@ -499,13 +512,15 @@ h1 {
 }
 
 .distributionGrid,
-.trendGrid {
+.trendGrid,
+.reportGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .distributionBox,
+.reportBox,
 .trendTableShell {
   min-width: 0;
   padding: 12px;
@@ -516,12 +531,17 @@ h1 {
 }
 
 .distributionBox h3,
+.reportBox h3,
 .trendTableShell h3 {
   margin-bottom: 10px;
   color: #475467;
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.reportBox.wide {
+  grid-column: 1 / -1;
 }
 
 .distributionRows {
@@ -562,6 +582,78 @@ h1 {
   background: #edf8f3;
   font-size: 12px;
   font-weight: 800;
+}
+
+.alertList,
+.recommendationList {
+  display: grid;
+  gap: 8px;
+}
+
+.alertRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.alertRow.warning {
+  border-color: #f1c58b;
+  background: #fff8e6;
+}
+
+.alertRow.critical {
+  border-color: #f0b8ad;
+  background: #fff1ef;
+}
+
+.alertRow strong {
+  display: block;
+  color: #101828;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.alertRow span {
+  display: block;
+  margin-top: 4px;
+  color: #475467;
+  font-size: 12px;
+}
+
+.alertNumbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.alertNumbers span,
+.alertOk,
+.recommendationList span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: #126143;
+  background: #edf8f3;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.recommendationList span {
+  justify-content: flex-start;
+  min-height: 28px;
+  border-radius: 6px;
+  color: #475467;
+  background: #ffffff;
+  overflow-wrap: anywhere;
 }
 
 .compactTable {
@@ -847,6 +939,7 @@ tbody tr:last-child td {
 
   .dryRunMetricGrid,
   .distributionGrid,
+  .reportGrid,
   .trendGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -895,8 +988,17 @@ tbody tr:last-child td {
 
   .dryRunMetricGrid,
   .distributionGrid,
+  .reportGrid,
   .trendGrid {
     grid-template-columns: 1fr;
+  }
+
+  .alertRow {
+    grid-template-columns: 1fr;
+  }
+
+  .alertNumbers {
+    justify-content: flex-start;
   }
 
   .detailList {
