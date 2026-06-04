@@ -122,6 +122,67 @@ h1 {
   color: #b54708;
 }
 
+.runtimePanel {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(92px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.runtimeItem,
+.runtimeBadge {
+  min-height: 52px;
+  padding: 9px 10px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.runtimeItem span {
+  display: block;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.runtimeItem strong {
+  display: block;
+  margin-top: 6px;
+  color: #18212f;
+  font-size: 14px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.runtimeItem.ok strong {
+  color: #14714c;
+}
+
+.runtimeItem.warn strong {
+  color: #b54708;
+}
+
+.runtimeBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #126143;
+  background: #edf8f3;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.runtimeBadge.warn {
+  color: #9f2b1f;
+  background: #fff1ef;
+}
+
 .controlBand {
   align-items: center;
   justify-content: space-between;
@@ -492,6 +553,10 @@ tbody tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .runtimePanel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .workspace {
     flex-direction: column;
   }
@@ -518,6 +583,10 @@ tbody tr:last-child td {
   }
 
   .metricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .runtimePanel {
     grid-template-columns: 1fr;
   }
 

@@ -46,6 +46,23 @@ export interface HedgePlanEnvelope {
   summary: HedgePlanSummary;
 }
 
+export type DashboardBotStatus = "fresh" | "stale" | "no_data";
+
+export interface DashboardStatus {
+  apiStatus: "ok";
+  botStatus: DashboardBotStatus;
+  readOnly: true;
+  liveTradingEnabled: false;
+  dataSource: HedgePlanEnvelope["dataSource"];
+  lastUpdated: string | null;
+  dataAgeMs: number | null;
+  staleThresholdMs: number;
+  planCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  maxAbsExposureUsd: number;
+}
+
 export interface WalletStatus {
   mode: "dry_run";
   liveTradingEnabled: false;

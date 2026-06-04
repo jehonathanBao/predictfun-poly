@@ -19,8 +19,8 @@ export async function loadHedgePlansForDashboard(
   options: DashboardDataSourceOptions = {},
 ): Promise<DashboardHedgePlanEnvelope> {
   const snapshotPath = options.snapshotPath ?? process.env.HEDGE_DASHBOARD_SNAPSHOT;
-  const latestPath = options.latestPath ?? DEFAULT_LATEST_HEDGE_PLANS_PATH;
-  const examplePath = options.examplePath ?? DEFAULT_EXAMPLE_SNAPSHOT_PATH;
+  const latestPath = options.latestPath ?? process.env.HEDGE_DASHBOARD_LATEST_PATH ?? DEFAULT_LATEST_HEDGE_PLANS_PATH;
+  const examplePath = options.examplePath ?? process.env.HEDGE_DASHBOARD_EXAMPLE_PATH ?? DEFAULT_EXAMPLE_SNAPSHOT_PATH;
 
   if (snapshotPath) {
     const snapshot = await readJsonIfExists(snapshotPath);

@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { HedgePlanTable } from "./components/HedgePlanTable";
+import { RuntimeStatusPanel } from "./components/RuntimeStatusPanel";
 import { WalletPanel } from "./components/WalletPanel";
-import type { HedgePlan, HedgePlanEnvelope } from "./types";
+import type { DashboardStatus, HedgePlan, HedgePlanEnvelope } from "./types";
 
 type FilterMode = "all" | "approved" | "rejected";
 
 const API_URL = import.meta.env.VITE_HEDGE_API_URL ?? "/api/hedge-plans";
+const STATUS_API_URL = import.meta.env.VITE_DASHBOARD_STATUS_API_URL ?? "/api/dashboard-status";
 
 export function App() {
   const [plans, setPlans] = useState<HedgePlan[]>([]);
   const [dataEnvelope, setDataEnvelope] = useState<HedgePlanEnvelope>();
+  const [runtimeStatus, setRuntimeStatus] = useState<DashboardStatus>();
   const [selectedMarketId, setSelectedMarketId] = useState<string>();
   const [filter, setFilter] = useState<FilterMode>("all");
   const [lastUpdated, setLastUpdated] = useState<string>("never");
@@ -23,10 +26,12 @@ export function App() {
         const response = await fetch(API_URL);
         if (!response.ok) throw new Error(`API returned ${response.status}`);
         const data = normalizeHedgePlanResponse(await response.json());
+        const status = await fetchRuntimeStatus(data);
         if (!active) return;
         setDataEnvelope(data);
+        setRuntimeStatus(status);
         setPlans(data.plans);
-        setLastUpdated(formatTimestamp(data.generatedAt));
+        setLastUpdated(formatTimestamp(status.lastUpdated ?? data.generatedAt));
         setError(undefined);
         setSelectedMarketId((current) => current ?? data.plans[0]?.marketId);
       } catch (fetchError) {
@@ -78,6 +83,8 @@ export function App() {
         <Metric label="Hedge Size" value={`$${formatNumber(totalHedgeSize)}`} />
         <Metric label="Last Updated" value={lastUpdated} />
       </section>
+
+      <RuntimeStatusPanel status={runtimeStatus} />
 
       <WalletPanel />
 
@@ -181,6 +188,33 @@ function normalizeHedgePlanResponse(value: unknown): HedgePlanEnvelope {
   }
 
   return value as HedgePlanEnvelope;
+}
+
+async function fetchRuntimeStatus(envelope: HedgePlanEnvelope): Promise<DashboardStatus> {
+  try {
+    const response = await fetch(STATUS_API_URL);
+    if (!response.ok) throw new Error(`Status API returned ${response.status}`);
+    return (await response.json()) as DashboardStatus;
+  } catch {
+    return runtimeStatusFromEnvelope(envelope);
+  }
+}
+
+function runtimeStatusFromEnvelope(envelope: HedgePlanEnvelope): DashboardStatus {
+  return {
+    apiStatus: "ok",
+    botStatus: envelope.dataSource === "latest_file" || envelope.dataSource === "snapshot_env" ? "fresh" : "no_data",
+    readOnly: true,
+    liveTradingEnabled: false,
+    dataSource: envelope.dataSource,
+    lastUpdated: envelope.generatedAt,
+    dataAgeMs: null,
+    staleThresholdMs: 10_000,
+    planCount: envelope.summary.totalPlans,
+    approvedCount: envelope.summary.approvedCount,
+    rejectedCount: envelope.summary.rejectedCount,
+    maxAbsExposureUsd: envelope.summary.maxAbsExposureUsd,
+  };
 }
 
 function formatTimestamp(value: string): string {

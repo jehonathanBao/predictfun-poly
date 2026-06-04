@@ -15,6 +15,14 @@ beforeEach(async () => {
 
 afterEach(async () => {
   delete process.env.HEDGE_DASHBOARD_SNAPSHOT;
+  delete process.env.HEDGE_DASHBOARD_LATEST_PATH;
+  delete process.env.HEDGE_DASHBOARD_EXAMPLE_PATH;
+  delete process.env.DASHBOARD_STALE_DATA_THRESHOLD_MS;
+  delete process.env.POLYMARKET_PRIVATE_KEY;
+  delete process.env.POLY_API_SECRET;
+  delete process.env.POLY_API_KEY;
+  delete process.env.POLY_PASSPHRASE;
+  delete process.env.PREDICT_API_KEY;
   await rm(tempDir, { recursive: true, force: true });
 });
 
@@ -143,11 +151,80 @@ describe("hedge dashboard plan API", () => {
   });
 });
 
+describe("hedge dashboard status API", () => {
+  it("serves read-only fresh status without secret material", async () => {
+    const latestPath = join(tempDir, "latest.json");
+    const generatedAt = new Date().toISOString();
+    await writeFile(
+      latestPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        generatedAt,
+        source: "server_test",
+        mode: "dry_run",
+        liveTradingEnabled: false,
+        plans: [
+          {
+            strategy: "EXPOSURE_HEDGE",
+            predictMarketId: "predict-status-api",
+            eventKey: "event-status-api",
+            netExposureUsd: 29,
+            executable: true,
+            dryRun: false,
+            risk: { approved: true, reasonCodes: [] },
+          },
+        ],
+      }),
+      "utf8",
+    );
+    process.env.HEDGE_DASHBOARD_LATEST_PATH = latestPath;
+    process.env.HEDGE_DASHBOARD_EXAMPLE_PATH = join(tempDir, "missing-example.json");
+    process.env.DASHBOARD_STALE_DATA_THRESHOLD_MS = "60000";
+    process.env.POLYMARKET_PRIVATE_KEY = "private-key-value";
+    process.env.POLY_API_SECRET = "api-secret-value";
+    process.env.POLY_API_KEY = "api-key-value";
+    process.env.POLY_PASSPHRASE = "passphrase-value";
+    process.env.PREDICT_API_KEY = "predict-key-value";
+
+    const server = createDashboardServer();
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server did not bind to a TCP port");
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/dashboard-status`);
+      const body = (await response.json()) as Record<string, unknown>;
+      const serialized = JSON.stringify(body);
+
+      expect(response.status).toBe(200);
+      expect(body.apiStatus).toBe("ok");
+      expect(body.botStatus).toBe("fresh");
+      expect(body.readOnly).toBe(true);
+      expect(body.liveTradingEnabled).toBe(false);
+      expect(body.dataSource).toBe("latest_file");
+      expect(body.planCount).toBe(1);
+      expect(body.approvedCount).toBe(1);
+      expect(serialized).not.toContain("private-key-value");
+      expect(serialized).not.toContain("api-secret-value");
+      expect(serialized).not.toContain("api-key-value");
+      expect(serialized).not.toContain("passphrase-value");
+      expect(serialized).not.toContain("predict-key-value");
+      expect(serialized).not.toContain("mnemonic");
+      expect(serialized).not.toContain("rawSigner");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
+
 describe("dashboard frontend safety copy", () => {
   it("does not expose live execution controls", async () => {
     const files = [
       "frontend/src/App.tsx",
       "frontend/src/components/HedgePlanTable.tsx",
+      "frontend/src/components/RuntimeStatusPanel.tsx",
       "frontend/src/components/WalletPanel.tsx",
     ];
     const source = (await Promise.all(files.map((file) => readFile(file, "utf8")))).join("\n");

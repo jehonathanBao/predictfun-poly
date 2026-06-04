@@ -34,12 +34,14 @@ export const rawConfigSchema = z.object({
     enabled: z.boolean().default(true),
     port: z.number().int().positive().default(3070),
     frontend_port: z.number().int().positive().default(5173),
-    read_only: z.literal(true).default(true)
+    read_only: z.literal(true).default(true),
+    stale_data_threshold_ms: z.number().int().positive().default(10_000)
   }).default({
     enabled: true,
     port: 3070,
     frontend_port: 5173,
-    read_only: true
+    read_only: true,
+    stale_data_threshold_ms: 10_000
   }),
   wallet: z.object({
     enabled: z.boolean().default(true),
@@ -227,6 +229,7 @@ export interface AppConfig {
     port: number;
     frontendPort: number;
     readOnly: true;
+    staleDataThresholdMs: number;
   };
   wallet: {
     enabled: boolean;
@@ -381,7 +384,8 @@ export function normalizeConfig(rawInput: unknown, env: NodeJS.ProcessEnv = proc
       enabled: raw.dashboard.enabled,
       port: raw.dashboard.port,
       frontendPort: raw.dashboard.frontend_port,
-      readOnly: raw.dashboard.read_only
+      readOnly: raw.dashboard.read_only,
+      staleDataThresholdMs: raw.dashboard.stale_data_threshold_ms
     },
     wallet: {
       enabled: raw.wallet.enabled,
@@ -529,7 +533,8 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AppConf
       enabled: parseBool(env.DASHBOARD_ENABLED, true),
       port: numberEnv(env.DASHBOARD_PORT, 3070),
       frontend_port: numberEnv(env.DASHBOARD_FRONTEND_PORT, 5173),
-      read_only: true
+      read_only: true,
+      stale_data_threshold_ms: numberEnv(env.DASHBOARD_STALE_DATA_THRESHOLD_MS, 10000)
     },
     wallet: {
       enabled: parseBool(env.WALLET_ENABLED, true),

@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
 import { loadHedgePlansForDashboard } from "./dashboard-data-source.js";
+import { loadDashboardStatus } from "./dashboard-status.js";
 
 export interface WalletDashboardConfig {
   enabled: boolean;
@@ -70,6 +71,11 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
 
   if (request.url === "/api/hedge-plans") {
     sendJson(response, 200, await loadHedgePlansForDashboard());
+    return;
+  }
+
+  if (request.url === "/api/dashboard-status") {
+    sendJson(response, 200, await loadDashboardStatus());
     return;
   }
 
