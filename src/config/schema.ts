@@ -722,3 +722,20 @@ function requiredLiveSecretEnvNames(config: AppConfig): readonly { envName: stri
 function hasValue(value: string | undefined): boolean {
   return value !== undefined && value.trim() !== "";
 }
+export const HEDGE_CONFIG_SCHEMA = {
+  enabled: "boolean",
+  dry_run: "boolean",
+  hedge_ratio: "number",
+  max_hedge_order_usd: "number",
+  min_hedge_order_usd: "number",
+  max_net_exposure_usd: "number",
+  max_predict_usage_pct: "number",
+  max_spread: "number",
+  min_depth_usd: "number",
+  max_depth_usage_pct: "number",
+  max_market_data_age_ms: "number",
+  require_same_event_key: "boolean",
+  allow_correlated_hedge: "boolean",
+  live_trading_enabled: "boolean",
+  post_only: "boolean",
+} as const;

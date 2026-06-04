@@ -1,108 +1,121 @@
-import { d, ZERO, type D, type Decimalish } from "../domain/money.js";
-
 export type PositionSide = "YES" | "NO";
 
-export interface PredictExposure {
+export type PredictPositionSide =
+  | PositionSide
+  | "long"
+  | "short"
+  | "yes"
+  | "no"
+  | "buy"
+  | "sell";
+
+export interface PredictPosition {
   marketId: string;
   eventKey: string;
-  side: PositionSide;
-  sizeUsd: D;
-  avgPrice: number;
-  currentPrice: number;
-  maxLossUsd: D;
+  side: PredictPositionSide;
+  sizeUsd?: number;
+  notionalUsd?: number;
+  valueUsd?: number;
+  usd?: number;
+  quantity?: number;
+  price?: number;
+  avgPrice?: number;
+  currentPrice?: number;
   accountId?: string;
 }
 
-export interface EventExposure {
+export interface MarketExposure {
+  marketId: string;
   eventKey: string;
-  totalYesUsd: D;
-  totalNoUsd: D;
-  netExposureUsd: D;
-  exposures: readonly PredictExposure[];
+  longUsd: number;
+  shortUsd: number;
+  netExposureUsd: number;
 }
 
-export interface SourceExposure {
-  venue: "predictfun";
-  marketId: string;
-  side: PositionSide;
-  sizeUsd: D;
-  netExposureUsd: D;
+const LONG_SIDES = new Set<PredictPositionSide>(["YES", "long", "yes", "buy"]);
+const SHORT_SIDES = new Set<PredictPositionSide>(["NO", "short", "no", "sell"]);
+
+type DecimalLike = {
+  toString(): string;
+};
+
+function toNumber(value: string | number | DecimalLike): number {
+  return typeof value === "number" ? value : Number(value.toString());
 }
 
 export function predictExposure(input: {
   marketId: string;
   eventKey: string;
   side: PositionSide;
-  sizeUsd: Decimalish;
-  avgPrice: number;
-  currentPrice: number;
-  maxLossUsd?: Decimalish;
+  sizeUsd: string | number | DecimalLike;
+  avgPrice?: string | number | DecimalLike;
+  currentPrice?: string | number | DecimalLike;
   accountId?: string;
-}): PredictExposure {
-  return {
+}): PredictPosition & MarketExposure {
+  const sizeUsd = toNumber(input.sizeUsd);
+  const longUsd = input.side === "YES" ? sizeUsd : 0;
+  const shortUsd = input.side === "NO" ? sizeUsd : 0;
+  const position: PredictPosition & MarketExposure = {
     marketId: input.marketId,
     eventKey: input.eventKey,
     side: input.side,
-    sizeUsd: d(input.sizeUsd),
-    avgPrice: input.avgPrice,
-    currentPrice: input.currentPrice,
-    maxLossUsd: d(input.maxLossUsd ?? input.sizeUsd),
-    accountId: input.accountId
+    sizeUsd,
+    avgPrice: toNumber(input.avgPrice ?? 0),
+    currentPrice: toNumber(input.currentPrice ?? 0),
+    longUsd,
+    shortUsd,
+    netExposureUsd: longUsd - shortUsd,
   };
-}
 
-export function calculateExposureByEvent(exposures: readonly PredictExposure[]): readonly EventExposure[] {
-  const grouped = new Map<string, PredictExposure[]>();
-  for (const exposure of exposures) {
-    const bucket = grouped.get(exposure.eventKey) ?? [];
-    bucket.push(exposure);
-    grouped.set(exposure.eventKey, bucket);
+  if (input.accountId) {
+    position.accountId = input.accountId;
   }
 
-  return [...grouped.entries()].map(([eventKey, bucket]) => {
-    const totalYesUsd = bucket.filter((item) => item.side === "YES").reduce((total, item) => total.plus(item.sizeUsd), ZERO);
-    const totalNoUsd = bucket.filter((item) => item.side === "NO").reduce((total, item) => total.plus(item.sizeUsd), ZERO);
-    return {
-      eventKey,
-      totalYesUsd,
-      totalNoUsd,
-      netExposureUsd: totalYesUsd.minus(totalNoUsd),
-      exposures: bucket
-    };
-  });
+  return position;
 }
 
-export function calculateNetPredictExposure(exposures: readonly PredictExposure[]): D {
-  return exposures.reduce((net, exposure) => (exposure.side === "YES" ? net.plus(exposure.sizeUsd) : net.minus(exposure.sizeUsd)), ZERO);
+function positionUsd(position: PredictPosition): number {
+  if (typeof position.sizeUsd === "number") return position.sizeUsd;
+  if (typeof position.notionalUsd === "number") return position.notionalUsd;
+  if (typeof position.valueUsd === "number") return position.valueUsd;
+  if (typeof position.usd === "number") return position.usd;
+  if (
+    typeof position.quantity === "number" &&
+    typeof position.price === "number"
+  ) {
+    return Math.abs(position.quantity * position.price);
+  }
+
+  return 0;
 }
 
-export function largestAbsoluteEventExposure(exposures: readonly EventExposure[]): EventExposure | undefined {
-  return exposures.reduce<EventExposure | undefined>((best, exposure) => {
-    if (!best) return exposure;
-    return exposure.netExposureUsd.abs().gt(best.netExposureUsd.abs()) ? exposure : best;
-  }, undefined);
-}
+export function calculatePredictExposure(
+  positions: PredictPosition[],
+): MarketExposure[] {
+  const exposures = new Map<string, MarketExposure>();
 
-export function hedgeSideForNetExposure(netExposureUsd: D): PositionSide {
-  if (netExposureUsd.gt(0)) return "NO";
-  if (netExposureUsd.lt(0)) return "YES";
-  throw new Error("net exposure is zero");
-}
+  for (const position of positions) {
+    const key = `${position.eventKey}:${position.marketId}`;
+    const current =
+      exposures.get(key) ??
+      {
+        marketId: position.marketId,
+        eventKey: position.eventKey,
+        longUsd: 0,
+        shortUsd: 0,
+        netExposureUsd: 0,
+      };
 
-export function sourceExposureFor(eventExposure: EventExposure): SourceExposure {
-  const side: PositionSide = eventExposure.netExposureUsd.gte(0) ? "YES" : "NO";
-  const source = eventExposure.exposures
-    .filter((exposure) => exposure.side === side)
-    .reduce<PredictExposure | undefined>((best, exposure) => {
-      if (!best) return exposure;
-      return exposure.sizeUsd.gt(best.sizeUsd) ? exposure : best;
-    }, undefined);
+    const usd = Math.abs(positionUsd(position));
+    if (LONG_SIDES.has(position.side)) {
+      current.longUsd += usd;
+    } else if (SHORT_SIDES.has(position.side)) {
+      current.shortUsd += usd;
+    }
 
-  return {
-    venue: "predictfun",
-    marketId: source?.marketId ?? eventExposure.eventKey,
-    side,
-    sizeUsd: source?.sizeUsd ?? eventExposure.netExposureUsd.abs(),
-    netExposureUsd: eventExposure.netExposureUsd
-  };
+    current.netExposureUsd = current.longUsd - current.shortUsd;
+    exposures.set(key, current);
+  }
+
+  return [...exposures.values()];
 }

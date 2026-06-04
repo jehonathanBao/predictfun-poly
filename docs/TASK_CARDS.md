@@ -435,3 +435,16 @@ Acceptance:
 - `live_trading_enabled=true` 时策略信号可标记 `executable=true`，但当前执行协调器仍不得提交订单。
 - YES 库存到上限时只报价 NO。
 - stale/过宽盘口能返回明确 reason code。
+## v0.2 Exposure Hedge
+
+Status: implemented as dry-run planning modules.
+
+- Add Predict exposure calculator in `src/hedge/exposure-calculator.ts`
+- Add hedge planner in `src/hedge/hedge-planner.ts`
+- Add hedge risk checks in `src/risk/hedge-risk.ts`
+- Add strategy entrypoint in `src/strategy/exposure-hedge.ts`
+- Add default hedge config and config schema metadata
+- Add unit coverage for dry-run generation, same-event matching, stale data,
+  spread, depth, hedge sizing, and non-executable safety
+- Keep `OPEN_PURE_ARBITRAGE` behavior unchanged
+- Keep `SIMPLE_MARKET_MAKER` frozen

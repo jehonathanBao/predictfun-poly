@@ -66,3 +66,28 @@ Execution risk:
 - delayed orders are treated as exposure until resolved,
 - stale Polymarket CLOB heartbeat or WS liveness pauses new openings,
 - no region-bypass logic is permitted.
+## Exposure Hedge Risk Checks
+
+`EXPOSURE_HEDGE` is a dry-run planning strategy for reducing Predict net
+exposure. It only considers hedge candidates with the same `eventKey` when
+`hedge.require_same_event_key` is enabled, and correlated hedge candidates are
+disabled by default.
+
+Each plan records `risk.reasonCodes` and a first `rejectReason`. Plans are
+rejected when any of the following are true:
+
+- no matching hedge market exists
+- candidate `eventKey` does not match the Predict exposure
+- market data age exceeds `hedge.max_market_data_age_ms`
+- spread exceeds `hedge.max_spread`
+- available depth is below `hedge.min_depth_usd`
+- requested hedge size exceeds `hedge.max_hedge_order_usd`
+- Predict net exposure exceeds `hedge.max_net_exposure_usd`
+- calculated hedge size is below `hedge.min_hedge_order_usd`
+
+The hedge size is capped by the smallest of net exposure times
+`hedge.hedge_ratio`, `hedge.max_hedge_order_usd`, and available depth times
+`hedge.max_depth_usage_pct`.
+
+Execution safety boundary: `EXPOSURE_HEDGE` plans are always dry-run and
+non-executable, even if live trading flags are accidentally enabled.

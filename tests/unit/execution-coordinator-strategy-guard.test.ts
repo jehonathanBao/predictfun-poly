@@ -51,8 +51,9 @@ function coordinatorFixture(input: { strategyDecision: StrategyDecision }): {
   predictPlaceOrder: ReturnType<typeof vi.fn>;
   polymarketPlaceOrder: ReturnType<typeof vi.fn>;
 } {
-  const predictMarket = market("PREDICT", "predict-btc-1h");
-  const polymarketMarket = market("POLYMARKET", "poly-btc-1h");
+  const now = Date.now();
+  const predictMarket = market("PREDICT", "predict-btc-1h", now);
+  const polymarketMarket = market("POLYMARKET", "poly-btc-1h", now);
   const predictOrderbook = book("0.20");
   const polymarketOrderbook = book("0.50");
   const predictPlaceOrder = vi.fn(async (request: OrderRequest) => filledResult(request));
@@ -114,8 +115,7 @@ function coordinatorFixture(input: { strategyDecision: StrategyDecision }): {
   };
 }
 
-function market(venue: BinaryMarketSpec["venue"], venueMarketId: string): BinaryMarketSpec {
-  const now = Date.now();
+function market(venue: BinaryMarketSpec["venue"], venueMarketId: string, now = Date.now()): BinaryMarketSpec {
   const start = new Date(now - 1_000_000);
   const end = new Date(start.getTime() + 3_600_000);
 

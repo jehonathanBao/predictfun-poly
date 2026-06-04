@@ -18,7 +18,17 @@ export * from "./execution/rescue.js";
 export * from "./execution/safety.js";
 export * from "./hedge/exposure-calculator.js";
 export * from "./hedge/hedge-market-matcher.js";
-export * from "./hedge/hedge-planner.js";
+export {
+  DEFAULT_HEDGE_CONFIG,
+  buildExposureHedgePlan as buildHedgePlannerExposureHedgePlan,
+  normalizeHedgeConfig,
+  planExposureHedges,
+  type HedgeConfig,
+  type HedgeDirection,
+  type HedgeOrderPlan,
+  type HedgePlan,
+  type RawHedgeConfig
+} from "./hedge/hedge-planner.js";
 export * from "./adapters/polymarket/heartbeat.js";
 export * from "./core/doctor.js";
 export * from "./core/preflight.js";
@@ -33,7 +43,13 @@ export * from "./monitoring/observability.js";
 export * from "./risk/manager.js";
 export * from "./risk/hedge-risk.js";
 export * from "./strategy/arbitrage-basic.js";
-export * from "./strategy/exposure-hedge.js";
+export {
+  ExposureHedgeStrategy,
+  buildExposureHedgePlan as buildExposureHedgeStrategyPlan,
+  type ExposureHedgeInput,
+  type ExposureHedgePlan,
+  type ExposureHedgeStrategyInput
+} from "./strategy/exposure-hedge.js";
 export * from "./strategy/hedge-engine.js";
 export * from "./strategy/inventory-rebalance.js";
 export * from "./strategy/risk-hedge.js";

@@ -1,51 +1,76 @@
-import { buildExposureHedgePlan, type HedgeRequest } from "../hedge/hedge-planner.js";
+import {
+  calculatePredictExposure,
+  type PredictPosition,
+} from "../hedge/exposure-calculator.js";
 import { ZERO } from "../domain/money.js";
-import { type StrategyDecision } from "./types.js";
+import {
+  planExposureHedges,
+  type HedgeCandidateMarket,
+  type HedgePlan,
+  type RawHedgeConfig,
+} from "../hedge/hedge-planner.js";
+import type { StrategyDecision } from "./types.js";
 
-export type ExposureHedgeStrategyInput = Partial<HedgeRequest>;
+export interface ExposureHedgeInput {
+  predictPositions?: PredictPosition[];
+  candidates?: HedgeCandidateMarket[];
+  config?: RawHedgeConfig;
+  nowMs?: number;
+}
+
+export type ExposureHedgePlan = HedgePlan[];
+
+export function buildExposureHedgePlan(input: ExposureHedgeInput): HedgePlan[] {
+  const exposures = calculatePredictExposure(input.predictPositions ?? []);
+
+  return planExposureHedges(
+    exposures,
+    input.candidates ?? [],
+    input.config,
+    input.nowMs,
+  );
+}
+
+export type ExposureHedgeStrategyInput = ExposureHedgeInput;
 
 export class ExposureHedgeStrategy {
-  evaluate(input: ExposureHedgeStrategyInput): StrategyDecision {
-    if (!input.exposures || !input.candidates || !input.config || input.nowMs === undefined) {
-      return rejected("EXPOSURE_HEDGE_INVALID_INPUT", "missing exposure hedge request fields");
-    }
+  buildPlan(input: ExposureHedgeStrategyInput): ExposureHedgePlan {
+    return buildExposureHedgePlan(input);
+  }
 
-    const hedgePlan = buildExposureHedgePlan({
-      exposures: input.exposures,
-      candidates: input.candidates,
-      config: input.config,
-      nowMs: input.nowMs
-    });
-    const accepted = hedgePlan.hedgeOrder !== undefined && hedgePlan.rejectReason === undefined;
+  evaluate(input: ExposureHedgeStrategyInput = {}): StrategyDecision {
+    const plans = this.buildPlan(input);
+    const rejected = plans.some((plan) => Boolean(plan.rejectReason));
 
     return {
-      accepted,
+      accepted: !rejected,
       mode: "exposure_hedge",
-      reasons: accepted ? [] : ["EXPOSURE_HEDGE_REJECTED"],
+      reasons: rejected ? ["EXPOSURE_HEDGE_REJECTED"] : [],
       plan: {
         mode: "exposure_hedge",
         action: "EXPOSURE_HEDGE",
         legs: [],
-        expectedNetExposureUsd: hedgePlan.exposureAfterUsd,
+        expectedNetExposureUsd: ZERO,
         expectedProfitAfterHedgeFee: ZERO,
-        metadata: { exposureHedge: hedgePlan }
-      }
+        metadata: { exposureHedge: plans },
+      },
     };
+  }
+
+  build(input: ExposureHedgeStrategyInput): ExposureHedgePlan {
+    return this.buildPlan(input);
+  }
+
+  plan(input: ExposureHedgeStrategyInput): ExposureHedgePlan {
+    return this.buildPlan(input);
   }
 }
 
-function rejected(reason: "EXPOSURE_HEDGE_INVALID_INPUT", message: string): StrategyDecision {
-  return {
-    accepted: false,
-    mode: "exposure_hedge",
-    reasons: [reason],
-    plan: {
-      mode: "exposure_hedge",
-      action: "PAUSE_NEW_OPENINGS",
-      legs: [],
-      expectedNetExposureUsd: ZERO,
-      expectedProfitAfterHedgeFee: ZERO,
-      metadata: { rejectReason: message }
-    }
-  };
-}
+export {
+  calculatePredictExposure,
+  planExposureHedges,
+  type HedgeCandidateMarket,
+  type HedgePlan,
+  type PredictPosition,
+  type RawHedgeConfig,
+};

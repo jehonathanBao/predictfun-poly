@@ -273,3 +273,18 @@ Predict accounts move through `READY`, `HELD_OPEN`, `HELD_AWAITING_RESOLUTION`, 
 ## Live Trading Boundary
 
 This repository does not sign orders directly. Predict order creation requires JWT plus signed SDK order payloads, and Polymarket CLOB trading requires wallet signing and L2 HMAC headers. Wire those through the client interfaces in `src/predictfun/clients.py` after validating the official SDK versions you run in production.
+## Predict Hedge-Only Mode
+
+Predict currently runs in hedge-only mode. The v0.2 `EXPOSURE_HEDGE`
+strategy reads Predict positions, calculates net exposure, and emits dry-run
+hedge plans only. It does not enable Predict market making and it must not
+place live orders.
+
+Exposure hedge plans are always emitted with:
+
+- `strategy: "EXPOSURE_HEDGE"`
+- `executable: false`
+- `dryRun: true`
+
+`OPEN_PURE_ARBITRAGE` remains the live execution path. `SIMPLE_MARKET_MAKER`
+stays frozen until explicitly re-enabled in a later release.
