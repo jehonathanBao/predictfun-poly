@@ -1,0 +1,21 @@
+simple_market_maker:
+  enabled: true
+  live_trading_enabled: false
+  n_paths: 20000
+  annualized_vol: 0.65
+  model_weight: 0.7
+  base_spread: 0.018
+  min_quote_spread: 0.012
+  max_quote_spread: 0.08
+  uncertainty_spread_multiplier: 0.4
+  fee_buffer: 0
+  slippage_buffer: 0
+  inventory_skew_factor: 0.03
+  max_order_usd: 5
+  max_inventory_usd: 25
+  min_depth_usd: 20
+  max_market_data_age_ms: 2000
+  min_seconds_to_expiry: 60
+  min_locked_edge: 0.004
+  quote_ttl_ms: 1500
+  post_only: true

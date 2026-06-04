@@ -1,0 +1,125 @@
+mode: "dry_run"
+
+strategy:
+  strategy_mode: "pure_arbitrage"
+  hedge_enabled: false
+  max_net_exposure_usd: "0.00"
+  max_predict_usage_pct: "0.30"
+  min_profit_after_hedge_fee: "0.00"
+
+simulation_edge:
+  sigma: 0.2
+  min_edge: 0.01
+  max_order_usd: 10
+  paths: 100000
+
+simple_market_maker:
+  enabled: true
+  live_trading_enabled: false
+  n_paths: 20000
+  annualized_vol: 0.65
+  model_weight: 0.7
+  base_spread: 0.018
+  min_quote_spread: 0.012
+  max_quote_spread: 0.08
+  uncertainty_spread_multiplier: 0.4
+  fee_buffer: 0
+  slippage_buffer: 0
+  inventory_skew_factor: 0.03
+  max_order_usd: 5
+  max_inventory_usd: 25
+  min_depth_usd: 20
+  max_market_data_age_ms: 2000
+  min_seconds_to_expiry: 60
+  min_locked_edge: 0.004
+  quote_ttl_ms: 1500
+  post_only: true
+
+market:
+  asset: "BTC"
+  allowed_market_family:
+    - "BTC_UP_DOWN"
+  max_window_seconds: 3600
+  require_exact_1h_window: true
+  min_seconds_to_close: 90
+  discovery_lookahead_seconds: 3600
+  max_start_time_mismatch_sec: 0
+  max_end_time_mismatch_sec: 0
+  require_same_resolution_source: true
+  allowed_resolution_sources:
+    - "BINANCE_BTC_USDT"
+  reject_market_families:
+    - "BTC_4H_UP_DOWN"
+    - "BTC_DAILY_UP_DOWN"
+    - "BTC_PRICE_TARGET"
+    - "BTC_RANGE"
+    - "BTC_MONTHLY"
+    - "BTC_YEARLY"
+
+profits:
+  min_net_profit_usd: "0.00"
+  require_positive_after_all_buffers: true
+  slippage_buffer_bps: 8
+  latency_buffer_bps: 10
+  stale_book_ms: 500
+
+risk:
+  predict_wallet_fraction_cap: "0.30"
+  predict_min_order_usdt: "1.00"
+  per_trade_max_usdt: "300.00"
+  max_unhedged_seconds: 2
+  rescue_max_loss_usd: "3.00"
+  pause_on_unhedged_residual: true
+  pause_on_polymarket_insufficient_balance: true
+
+execution:
+  order_type: "FOK"
+  parallel_submit: true
+  max_fill_wait_ms: 1000
+  cancel_unfilled_orders: true
+  post_trade_reconcile_required: true
+
+jobs:
+  market_discovery_interval_ms: 15000
+  orderbook_poll_fallback_ms: 1000
+  account_refresh_interval_ms: 10000
+  reconciliation_interval_ms: 5000
+  settlement_check_interval_ms: 30000
+
+liveness:
+  polymarket_clob_heartbeat_interval_ms: 5000
+  polymarket_clob_heartbeat_timeout_ms: 15000
+  websocket_heartbeat_timeout_ms: 15000
+
+predict:
+  api_base: "https://api.predict.fun"
+  ws_base: "wss://ws.predict.fun/ws"
+  api_key_env: "PREDICT_API_KEY"
+  jwt_refresh_seconds_before_expiry: 120
+  rate_limit_per_minute: 240
+
+polymarket:
+  gamma_base: "https://gamma-api.polymarket.com"
+  clob_base: "https://clob.polymarket.com"
+  data_base: "https://data-api.polymarket.com"
+  market_ws_base: "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+  user_ws_base: "wss://ws-subscriptions-clob.polymarket.com/ws/user"
+  geoblock_check: true
+  heartbeat_enabled: true
+
+accounts:
+  predict_accounts_file: "./secrets/predict_accounts.enc.json"
+  polymarket_private_key_env: "POLYMARKET_PRIVATE_KEY"
+  polymarket_funder_env: "POLYMARKET_FUNDER_ADDRESS"
+  polymarket_api_key_env: "POLY_API_KEY"
+  polymarket_api_secret_env: "POLY_API_SECRET"
+  polymarket_passphrase_env: "POLY_PASSPHRASE"
+
+storage:
+  postgres_url_env: "DATABASE_URL"
+  redis_url_env: "REDIS_URL"
+
+alerts:
+  telegram_enabled: false
+  telegram_bot_token_env: "TELEGRAM_BOT_TOKEN"
+  telegram_chat_id_env: "TELEGRAM_CHAT_ID"

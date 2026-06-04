@@ -1,0 +1,10 @@
+[project]
+name = "btc-predict-polymarket-hedger"
+version = "0.1.0"
+description = "Safety-first BTC binary-market hedge bot skeleton"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

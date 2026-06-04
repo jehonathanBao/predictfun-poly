@@ -1,0 +1,2 @@
+-- Canonical schema lives at src/persistence/migrations/001_init.sql.
+-- This compatibility file intentionally contains no executable SQL.

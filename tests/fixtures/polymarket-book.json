@@ -1,0 +1,7 @@
+{
+  "bids": [{"price": "0.48", "size": "100"}],
+  "asks": [{"price": "0.50", "size": "100"}],
+  "min_order_size": "5",
+  "tick_size": "0.01"
+}
+

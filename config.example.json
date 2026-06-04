@@ -1,0 +1,84 @@
+{
+  "dry_run": true,
+  "enable_live_trading": false,
+  "strategy": {
+    "strategy_mode": "pure_arbitrage",
+    "hedge_enabled": false,
+    "max_net_exposure_usd": "0.00",
+    "max_predict_usage_pct": "0.30",
+    "min_profit_after_hedge_fee": "0.00"
+  },
+  "simulation_edge": {
+    "sigma": 0.2,
+    "min_edge": 0.01,
+    "max_order_usd": 10,
+    "paths": 100000
+  },
+  "simple_market_maker": {
+    "enabled": true,
+    "live_trading_enabled": false,
+    "n_paths": 20000,
+    "annualized_vol": 0.65,
+    "model_weight": 0.7,
+    "base_spread": 0.018,
+    "min_quote_spread": 0.012,
+    "max_quote_spread": 0.08,
+    "uncertainty_spread_multiplier": 0.4,
+    "fee_buffer": 0,
+    "slippage_buffer": 0,
+    "inventory_skew_factor": 0.03,
+    "max_order_usd": 5,
+    "max_inventory_usd": 25,
+    "min_depth_usd": 20,
+    "max_market_data_age_ms": 2000,
+    "min_seconds_to_expiry": 60,
+    "min_locked_edge": 0.004,
+    "quote_ttl_ms": 1500,
+    "post_only": true
+  },
+  "risk": {
+    "min_predict_order_usdt": "1",
+    "predict_slippage_bps": "10",
+    "polymarket_slippage_bps": "10",
+    "latency_buffer_bps": "5",
+    "rescue_slippage_bps": "30",
+    "predict_max_trade_fraction": "0.30",
+    "gas_or_fixed_cost_per_share": "0.0000",
+    "rounding_buffer_per_share": "0.0000",
+    "fixed_costs_usd": "0.00",
+    "per_trade_max_usd": null,
+    "market_data_max_age_ms": 1500,
+    "predict_rate_limit_rpm": 240
+  },
+  "profits": {
+    "min_net_profit_usd": "0.00",
+    "require_positive_after_all_buffers": true
+  },
+  "execution": {
+    "poll_interval_ms": 50,
+    "poll_timeout_ms": 2000,
+    "crypto_finance_taker_delay_ms": 250,
+    "sports_taker_delay_ms": 1000,
+    "allow_loss_mitigating_rescue": false
+  },
+  "predict_accounts": [
+    {
+      "account_id": "predict-1",
+      "address": "0x0000000000000000000000000000000000000000",
+      "available_balance_usdt": "100",
+      "jwt_env": "PREDICT_JWT_ACCOUNT_1"
+    },
+    {
+      "account_id": "predict-2",
+      "address": "0x0000000000000000000000000000000000000000",
+      "available_balance_usdt": "100",
+      "jwt_env": "PREDICT_JWT_ACCOUNT_2"
+    }
+  ],
+  "polymarket": {
+    "account_id": "poly-main",
+    "address": "0x0000000000000000000000000000000000000000",
+    "available_balance_usdc": "100",
+    "address_env": "POLY_ADDRESS"
+  }
+}
