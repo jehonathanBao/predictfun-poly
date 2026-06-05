@@ -332,6 +332,36 @@ pnpm bot:dry-run
 pnpm bot:dry-run:once
 ```
 
+To run simulated funds against read-only live market data, enable paper-live
+mode. This still writes only dry-run dashboard data and never signs, sends
+transactions, or calls `placeOrder`.
+
+```powershell
+$env:PAPER_LIVE_MARKET_DATA="true"
+$env:PAPER_MARKET_DATA_URL="https://example.test/orderbook.json"
+$env:PAPER_SIM_FUNDS_USD="100"
+$env:PAPER_SIM_NET_EXPOSURE_USD="20"
+.\scripts\restart-dashboard.ps1
+```
+
+The market data URL should return an order book with `bids` and `asks` arrays
+using either object levels like `{ "price": "0.48", "size": "100" }` or tuple
+levels like `[0.48, 100]`. For Polymarket CLOB token books, provide a token id
+instead of a full URL:
+
+```powershell
+$env:PAPER_LIVE_MARKET_DATA="true"
+$env:PAPER_POLYMARKET_TOKEN_ID="<readonly-token-id>"
+.\scripts\restart-dashboard.ps1
+```
+
+Paper-live output stays in:
+
+```text
+data/hedge-plans.latest.json
+data/hedge-plans.history.jsonl
+```
+
 The main API endpoint is `GET /api/hedge-plans`. The response is a dry-run envelope with:
 
 - `generatedAt`

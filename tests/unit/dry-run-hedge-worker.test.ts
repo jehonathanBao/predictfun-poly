@@ -93,6 +93,155 @@ describe("dry-run hedge worker", () => {
       once: true,
       latestPath: "tmp/latest.json",
       historyPath: "tmp/history.jsonl",
+      paperLiveMarketData: false,
+      paperMarketDataUrl: undefined,
+      paperPolymarketTokenId: undefined,
+      paperPolymarketClobBase: "https://clob.polymarket.com",
+      paperSimFundsUsd: 100,
+      paperSimNetExposureUsd: 10,
+      paperHedgeRatio: 0.5,
+      paperMaxOrderUsd: 10,
+      paperEventKey: "paper-live-market",
+      paperPredictMarketId: "paper-predict",
+      paperHedgeMarketId: "paper-polymarket",
+    });
+  });
+
+  it("writes a paper live-market dry-run plan from a real-data shaped orderbook", async () => {
+    const latestPath = join(tempDir, "paper-live.latest.json");
+    const historyPath = join(tempDir, "paper-live.history.jsonl");
+    const now = new Date("2026-06-05T00:00:00.000Z");
+    const fetchFn = async () =>
+      new Response(
+        JSON.stringify({
+          bids: [
+            { price: "0.48", size: "100" },
+            { price: "0.47", size: "50" },
+          ],
+          asks: [
+            { price: "0.52", size: "80" },
+            { price: "0.53", size: "40" },
+          ],
+        }),
+        { status: 200 },
+      );
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath,
+      historyPath,
+      now,
+      fetchFn,
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/orderbook.json",
+        paperSimFundsUsd: 25,
+        paperSimNetExposureUsd: 20,
+        paperHedgeRatio: 0.5,
+        paperMaxOrderUsd: 8,
+        paperEventKey: "btc-paper-event",
+        paperPredictMarketId: "predict-paper-btc",
+        paperHedgeMarketId: "poly-paper-btc",
+      },
+    });
+
+    expect(written).toMatchObject({
+      source: "paper_live_market_data",
+      mode: "dry_run",
+      readOnly: true,
+      liveTradingEnabled: false,
+      summary: {
+        totalPlans: 1,
+        approvedCount: 1,
+        rejectedCount: 0,
+        maxAbsExposureUsd: 20,
+      },
+    });
+    expect(written.plans[0]).toMatchObject({
+      strategy: "EXPOSURE_HEDGE",
+      marketId: "predict-paper-btc",
+      eventKey: "btc-paper-event",
+      hedgeDirection: "SELL",
+      netExposureUsd: 20,
+      hedgeSizeUsd: 8,
+      hedgeMarketId: "poly-paper-btc",
+      executable: false,
+      dryRun: true,
+      riskApproved: true,
+      riskCodes: [],
+      hedgeOrder: {
+        venue: "POLYMARKET",
+        side: "SELL",
+        limitPrice: 0.48,
+        sizeUsd: "8",
+        postOnly: true,
+      },
+      metadata: {
+        paperTrading: true,
+        marketData: "live",
+        simulatedFundsUsd: 25,
+        simulatedNetExposureUsd: 20,
+        bestBid: 0.48,
+        bestAsk: 0.52,
+        spread: 0.04,
+      },
+    });
+  });
+
+  it("writes a rejected paper plan when live market data is enabled without a source", async () => {
+    const latestPath = join(tempDir, "paper-missing.latest.json");
+    const historyPath = join(tempDir, "paper-missing.history.jsonl");
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath,
+      historyPath,
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      workerOptions: {
+        paperLiveMarketData: true,
+      },
+    });
+
+    expect(written.summary).toMatchObject({
+      totalPlans: 1,
+      approvedCount: 0,
+      rejectedCount: 1,
+      maxAbsExposureUsd: 10,
+    });
+    expect(written.plans[0]).toMatchObject({
+      executable: false,
+      dryRun: true,
+      rejectReason: "paper_market_data_not_configured",
+      riskCodes: ["paper_market_data_not_configured"],
+      riskApproved: false,
+    });
+  });
+
+  it("parses paper live-market options from flags and env", () => {
+    const options = parseDryRunHedgeWorkerOptions(
+      [
+        "--paper-live-market-data",
+        "--paper-polymarket-token-id",
+        "token-1",
+        "--paper-sim-net-exposure-usd=-15",
+        "--paper-max-order-usd",
+        "7",
+      ],
+      {
+        PAPER_MARKET_DATA_URL: "https://example.test/book",
+        PAPER_SIM_FUNDS_USD: "30",
+        PAPER_HEDGE_RATIO: "0.25",
+        PAPER_EVENT_KEY: "event-paper",
+      },
+    );
+
+    expect(options).toMatchObject({
+      paperLiveMarketData: true,
+      paperMarketDataUrl: "https://example.test/book",
+      paperPolymarketTokenId: "token-1",
+      paperSimFundsUsd: 30,
+      paperSimNetExposureUsd: -15,
+      paperHedgeRatio: 0.25,
+      paperMaxOrderUsd: 7,
+      paperEventKey: "event-paper",
     });
   });
 
