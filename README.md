@@ -351,13 +351,22 @@ instead of a full URL:
 
 ```powershell
 $env:PAPER_LIVE_MARKET_DATA="true"
-$env:PAPER_POLYMARKET_TOKEN_ID="<readonly-token-id>"
+$env:PAPER_POLYMARKET_TOKEN_ID="<real-polymarket-outcome-token-id>"
 .\scripts\restart-dashboard.ps1
 ```
 
 Paper-live validation emits `dataSource: "paper_live"` and surfaces
 orderbook issues in `riskCodes` / `rejectReason`, including malformed levels,
 out-of-range prices, stale orderbook timestamps, wide spreads, and low depth.
+The worker rejects placeholder or missing token ids before fetching, and
+classifies fetch diagnostics as `paper_market_token_id_placeholder`,
+`paper_market_token_id_missing`, `paper_market_orderbook_not_found`,
+`paper_market_data_bad_status`, `paper_market_data_network_error`, or
+`paper_orderbook_schema_invalid`. Dashboard diagnostics show Paper Mode,
+the masked token id or URL host, `lastFetchAt`, and `fetchErrorCode` without
+returning raw query strings or secrets. The default dashboard stale threshold
+is 30 seconds so a 15 second paper-live worker interval does not show stale
+unless the orderbook itself is stale.
 Optional validation knobs:
 
 ```powershell

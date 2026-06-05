@@ -156,7 +156,10 @@ describe("dry-run hedge worker", () => {
         enabled: true,
         sourceType: "market_data_url",
         sourceLabel: "https://example.test/orderbook.json",
+        marketDataSource: "market_data_url",
         marketDataUrlMasked: "https://example.test/orderbook.json",
+        marketDataUrlHost: "example.test",
+        lastFetchAt: now.toISOString(),
       },
       summary: {
         totalPlans: 1,
@@ -187,11 +190,14 @@ describe("dry-run hedge worker", () => {
       metadata: {
         paperTrading: true,
         marketData: "live",
+        marketDataSource: "market_data_url",
         simulatedFundsUsd: 25,
         simulatedNetExposureUsd: 20,
         bestBid: 0.48,
         bestAsk: 0.52,
         spread: 0.04,
+        marketDataUrlHost: "example.test",
+        lastFetchAt: now.toISOString(),
         source: "https://example.test/orderbook.json",
       },
     });
@@ -216,9 +222,12 @@ describe("dry-run hedge worker", () => {
     expect(written.plans[0]).toMatchObject({
       executable: false,
       dryRun: true,
-      rejectReason: "paper_market_data_fetch_failed",
+      rejectReason: "paper_orderbook_schema_invalid",
       riskApproved: false,
-      riskCodes: ["paper_market_data_fetch_failed"],
+      riskCodes: ["paper_orderbook_schema_invalid"],
+      metadata: {
+        fetchErrorCode: "paper_orderbook_schema_invalid",
+      },
     });
   });
 
@@ -239,9 +248,13 @@ describe("dry-run hedge worker", () => {
     expect(written.plans[0]).toMatchObject({
       executable: false,
       dryRun: true,
-      rejectReason: "paper_orderbook_asks_missing",
+      rejectReason: "paper_orderbook_schema_invalid",
       riskApproved: false,
-      riskCodes: expect.arrayContaining(["paper_orderbook_asks_missing", "paper_market_depth_too_low"]),
+      riskCodes: expect.arrayContaining([
+        "paper_orderbook_schema_invalid",
+        "paper_orderbook_asks_missing",
+        "paper_orderbook_depth_insufficient",
+      ]),
     });
   });
 
@@ -305,17 +318,17 @@ describe("dry-run hedge worker", () => {
     expect(written.plans[0]).toMatchObject({
       executable: false,
       dryRun: true,
-      rejectReason: "paper_market_spread_too_wide",
+      rejectReason: "paper_orderbook_spread_too_wide",
       riskApproved: false,
       riskCodes: expect.arrayContaining([
-        "paper_market_spread_too_wide",
-        "paper_market_depth_too_low",
+        "paper_orderbook_spread_too_wide",
+        "paper_orderbook_depth_insufficient",
         "paper_orderbook_stale",
       ]),
     });
   });
 
-  it("writes a rejected paper plan when live market data is enabled without a source", async () => {
+  it("writes a rejected paper plan when live market data is enabled without a token id or URL", async () => {
     const latestPath = join(tempDir, "paper-missing.latest.json");
     const historyPath = join(tempDir, "paper-missing.history.jsonl");
 
@@ -337,9 +350,93 @@ describe("dry-run hedge worker", () => {
     expect(written.plans[0]).toMatchObject({
       executable: false,
       dryRun: true,
-      rejectReason: "paper_market_data_not_configured",
-      riskCodes: ["paper_market_data_not_configured"],
+      rejectReason: "paper_market_token_id_missing",
+      riskCodes: ["paper_market_token_id_missing"],
       riskApproved: false,
+      metadata: {
+        fetchErrorCode: "paper_market_token_id_missing",
+      },
+    });
+  });
+
+  it("rejects placeholder Polymarket token ids before fetching", async () => {
+    let fetchCalled = false;
+    const fetchFn = async () => {
+      fetchCalled = true;
+      return new Response(JSON.stringify({ bids: [], asks: [] }), { status: 200 });
+    };
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "placeholder.latest.json"),
+      historyPath: join(tempDir, "placeholder.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn,
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperPolymarketTokenId: "<readonly-token-id>",
+      },
+    });
+
+    expect(fetchCalled).toBe(false);
+    expect(written.plans[0]).toMatchObject({
+      executable: false,
+      dryRun: true,
+      rejectReason: "paper_market_token_id_placeholder",
+      riskCodes: ["paper_market_token_id_placeholder"],
+      metadata: {
+        fetchErrorCode: "paper_market_token_id_placeholder",
+        marketDataSource: "polymarket_clob_book",
+        tokenIdMasked: "<reado...-id>",
+      },
+    });
+  });
+
+  it("classifies missing, bad-status, and network orderbook fetch failures", async () => {
+    const notFound = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "not-found.latest.json"),
+      historyPath: join(tempDir, "not-found.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn: async () => new Response("not found", { status: 404 }),
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/book",
+      },
+    });
+    expect(notFound.plans[0]).toMatchObject({
+      rejectReason: "paper_market_orderbook_not_found",
+      riskCodes: ["paper_market_orderbook_not_found"],
+    });
+
+    const badStatus = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "bad-status.latest.json"),
+      historyPath: join(tempDir, "bad-status.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn: async () => new Response("busy", { status: 503 }),
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/book",
+      },
+    });
+    expect(badStatus.plans[0]).toMatchObject({
+      rejectReason: "paper_market_data_bad_status",
+      riskCodes: ["paper_market_data_bad_status"],
+    });
+
+    const network = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "network.latest.json"),
+      historyPath: join(tempDir, "network.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn: async () => {
+        throw new Error("connection reset");
+      },
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/book",
+      },
+    });
+    expect(network.plans[0]).toMatchObject({
+      rejectReason: "paper_market_data_network_error",
+      riskCodes: ["paper_market_data_network_error"],
     });
   });
 
@@ -402,8 +499,11 @@ describe("dry-run hedge worker", () => {
     expect(written.paperLive).toMatchObject({
       sourceType: "market_data_url",
       sourceLabel: "https://example.test/book?...",
+      marketDataSource: "market_data_url",
       marketDataUrlMasked: "https://example.test/book?...",
+      marketDataUrlHost: "example.test",
       polymarketTokenIdMasked: "123456...cdef",
+      tokenIdMasked: "123456...cdef",
     });
     expect(serialized).not.toContain("do-not-return");
     expect(serialized).not.toContain("api_secret=do-not-return");

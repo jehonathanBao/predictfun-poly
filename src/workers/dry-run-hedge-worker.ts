@@ -174,13 +174,26 @@ export function paperLiveStatusFromOptions(options: Partial<DryRunHedgeWorkerOpt
       ? "polymarket_token_id"
       : "none";
   const marketDataUrlMasked = resolved.paperMarketDataUrl ? maskMarketDataUrl(resolved.paperMarketDataUrl) : undefined;
+  const marketDataUrlHost = resolved.paperMarketDataUrl
+    ? urlHost(resolved.paperMarketDataUrl)
+    : sourceType === "polymarket_token_id"
+      ? urlHost(resolved.paperPolymarketClobBase)
+      : undefined;
   const polymarketTokenIdMasked = resolved.paperPolymarketTokenId ? maskTokenId(resolved.paperPolymarketTokenId) : undefined;
+  const marketDataSource = sourceType === "market_data_url"
+    ? "market_data_url"
+    : sourceType === "polymarket_token_id"
+      ? "polymarket_clob_book"
+      : "none";
   return {
     enabled: resolved.paperLiveMarketData,
     sourceType,
     sourceLabel: marketDataUrlMasked ?? polymarketTokenIdMasked ?? "not configured",
+    marketDataSource,
     marketDataUrlMasked,
+    marketDataUrlHost,
     polymarketTokenIdMasked,
+    tokenIdMasked: polymarketTokenIdMasked,
     maxSpread: resolved.paperMaxSpread,
     minDepthUsd: resolved.paperMinDepthUsd,
     maxMarketDataAgeMs: resolved.paperMaxMarketDataAgeMs,
@@ -222,36 +235,72 @@ async function buildPaperLiveMarketDataPayload(input: {
   fetchFn: typeof fetch;
 }): Promise<StoredHedgePlanRecord> {
   const generatedAt = (input.now ?? new Date()).toISOString();
-  const bookUrl = paperBookUrl(input.options);
-  if (bookUrl === undefined) {
-    return paperPayload(input.options, generatedAt, [
-      paperRejectedPlan(input.options, "paper_market_data_not_configured", "no paper market data URL or Polymarket token id configured"),
-    ]);
-  }
-
-  try {
-    const response = await input.fetchFn(bookUrl);
-    if (!response.ok) {
-      return paperPayload(input.options, generatedAt, [
-        paperRejectedPlan(input.options, "paper_market_data_fetch_failed", `market data HTTP ${response.status}`),
-      ]);
-    }
-
-    const book = parsePaperOrderBook(await response.json());
-    const plan = buildPaperPlanFromBook(input.options, book);
-    return paperPayload(input.options, generatedAt, [plan]);
-  } catch (error) {
+  const bookRequest = paperBookRequest(input.options);
+  if (bookRequest.errorCode !== undefined || bookRequest.bookUrl === undefined) {
+    const code = bookRequest.errorCode ?? "paper_market_token_id_missing";
     return paperPayload(input.options, generatedAt, [
       paperRejectedPlan(
         input.options,
-        "paper_market_data_fetch_failed",
-        error instanceof Error ? error.message : "market data fetch failed",
+        code,
+        bookRequest.message ?? "paper market data source is not configured",
+        { fetchErrorCode: code },
       ),
-    ]);
+    ], { fetchErrorCode: code });
+  }
+
+  const lastFetchAt = generatedAt;
+  try {
+    const response = await input.fetchFn(bookRequest.bookUrl);
+    if (!response.ok) {
+      const code = response.status === 404
+        ? "paper_market_orderbook_not_found"
+        : "paper_market_data_bad_status";
+      return paperPayload(input.options, generatedAt, [
+        paperRejectedPlan(input.options, code, `market data HTTP ${response.status}`, { lastFetchAt, fetchErrorCode: code }),
+      ], { lastFetchAt, fetchErrorCode: code });
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      const code = "paper_orderbook_schema_invalid";
+      return paperPayload(input.options, generatedAt, [
+        paperRejectedPlan(
+          input.options,
+          code,
+          error instanceof Error ? error.message : "orderbook JSON could not be parsed",
+          { lastFetchAt, fetchErrorCode: code },
+        ),
+      ], { lastFetchAt, fetchErrorCode: code });
+    }
+
+    const book = parsePaperOrderBook(payload);
+    const plan = buildPaperPlanFromBook(input.options, book, { lastFetchAt });
+    const riskCodes = Array.isArray(plan.riskCodes) ? plan.riskCodes : [];
+    const fetchErrorCode = riskCodes.includes("paper_orderbook_schema_invalid")
+      ? "paper_orderbook_schema_invalid"
+      : undefined;
+    return paperPayload(input.options, generatedAt, [plan], { lastFetchAt, fetchErrorCode });
+  } catch (error) {
+    const code = "paper_market_data_network_error";
+    return paperPayload(input.options, generatedAt, [
+      paperRejectedPlan(
+        input.options,
+        code,
+        error instanceof Error ? error.message : "market data fetch failed",
+        { lastFetchAt, fetchErrorCode: code },
+      ),
+    ], { lastFetchAt, fetchErrorCode: code });
   }
 }
 
-function paperPayload(options: DryRunHedgeWorkerOptions, generatedAt: string, plans: unknown[]): StoredHedgePlanRecord {
+function paperPayload(
+  options: DryRunHedgeWorkerOptions,
+  generatedAt: string,
+  plans: unknown[],
+  diagnostics: PaperMarketDiagnostics = {},
+): StoredHedgePlanRecord {
   return {
     schemaVersion: 1,
     generatedAt,
@@ -260,11 +309,18 @@ function paperPayload(options: DryRunHedgeWorkerOptions, generatedAt: string, pl
     readOnly: true,
     liveTradingEnabled: false,
     plans,
-    paperLive: paperLiveStatusFromOptions(options),
+    paperLive: {
+      ...paperLiveStatusFromOptions(options),
+      ...diagnostics,
+    },
   };
 }
 
-function buildPaperPlanFromBook(options: DryRunHedgeWorkerOptions, book: PaperOrderBook): Record<string, unknown> {
+function buildPaperPlanFromBook(
+  options: DryRunHedgeWorkerOptions,
+  book: PaperOrderBook,
+  diagnostics: PaperMarketDiagnostics = {},
+): Record<string, unknown> {
   const netExposureUsd = roundUsd(options.paperSimNetExposureUsd);
   const hedgeDirection = netExposureUsd >= 0 ? "SELL" : "BUY";
   const side = hedgeDirection === "SELL" ? book.bids : book.asks;
@@ -276,8 +332,8 @@ function buildPaperPlanFromBook(options: DryRunHedgeWorkerOptions, book: PaperOr
     : roundUsd(Math.min(requestedUsd, options.paperMaxOrderUsd, options.paperSimFundsUsd, depthUsd));
   const spread = book.asks[0] && book.bids[0] ? roundUsd(book.asks[0].price - book.bids[0].price) : undefined;
   const riskCodes = new Set(book.warningCodes);
-  if (spread !== undefined && spread > options.paperMaxSpread) riskCodes.add("paper_market_spread_too_wide");
-  if (depthUsd < options.paperMinDepthUsd) riskCodes.add("paper_market_depth_too_low");
+  if (spread !== undefined && spread > options.paperMaxSpread) riskCodes.add("paper_orderbook_spread_too_wide");
+  if (depthUsd < options.paperMinDepthUsd) riskCodes.add("paper_orderbook_depth_insufficient");
   if (book.timestampMs !== undefined && Date.now() - book.timestampMs > options.paperMaxMarketDataAgeMs) {
     riskCodes.add("paper_orderbook_stale");
   }
@@ -329,7 +385,7 @@ function buildPaperPlanFromBook(options: DryRunHedgeWorkerOptions, book: PaperOr
       spread,
       depthUsd,
       orderbookTimestampMs: book.timestampMs,
-      source: paperLiveStatusFromOptions(options).sourceLabel,
+      ...paperMarketMetadata(options, diagnostics),
     },
   };
 }
@@ -338,6 +394,7 @@ function paperRejectedPlan(
   options: DryRunHedgeWorkerOptions,
   code: string,
   message: string,
+  diagnostics: PaperMarketDiagnostics = {},
 ): Record<string, unknown> {
   return {
     strategy: "EXPOSURE_HEDGE",
@@ -364,9 +421,8 @@ function paperRejectedPlan(
       rejectReason: code,
     },
     metadata: {
-      paperTrading: true,
-      marketData: "live",
       message,
+      ...paperMarketMetadata(options, diagnostics),
       simulatedFundsUsd: options.paperSimFundsUsd,
       simulatedNetExposureUsd: roundUsd(options.paperSimNetExposureUsd),
     },
@@ -380,6 +436,17 @@ interface PaperOrderBook {
   timestampMs?: number;
 }
 
+interface PaperBookRequest {
+  bookUrl?: string;
+  errorCode?: string;
+  message?: string;
+}
+
+interface PaperMarketDiagnostics {
+  lastFetchAt?: string;
+  fetchErrorCode?: string;
+}
+
 interface PaperOrderBookLevel {
   price: number;
   size: number;
@@ -390,8 +457,8 @@ function parsePaperOrderBook(payload: unknown): PaperOrderBook {
   const nestedBook = asRecord(record.book ?? record.orderbook ?? record.data);
   const source = Array.isArray(record.bids) || Array.isArray(record.asks) ? record : nestedBook;
   const warningCodes: string[] = [];
-  if (!Array.isArray(source.bids)) warningCodes.push("paper_orderbook_bids_missing");
-  if (!Array.isArray(source.asks)) warningCodes.push("paper_orderbook_asks_missing");
+  if (!Array.isArray(source.bids)) warningCodes.push("paper_orderbook_schema_invalid", "paper_orderbook_bids_missing");
+  if (!Array.isArray(source.asks)) warningCodes.push("paper_orderbook_schema_invalid", "paper_orderbook_asks_missing");
 
   return {
     bids: levels(source.bids, warningCodes).sort((left, right) => right.price - left.price),
@@ -443,11 +510,39 @@ function timestampMs(value: unknown): number | undefined {
   return undefined;
 }
 
-function paperBookUrl(options: DryRunHedgeWorkerOptions): string | undefined {
-  if (options.paperMarketDataUrl) return options.paperMarketDataUrl;
-  if (!options.paperPolymarketTokenId) return undefined;
+function paperBookRequest(options: DryRunHedgeWorkerOptions): PaperBookRequest {
+  if (options.paperMarketDataUrl) return { bookUrl: options.paperMarketDataUrl };
+  if (!options.paperPolymarketTokenId) {
+    return {
+      errorCode: "paper_market_token_id_missing",
+      message: "PAPER_POLYMARKET_TOKEN_ID is required when PAPER_MARKET_DATA_URL is not set",
+    };
+  }
+  if (isPlaceholderTokenId(options.paperPolymarketTokenId)) {
+    return {
+      errorCode: "paper_market_token_id_placeholder",
+      message: "PAPER_POLYMARKET_TOKEN_ID is still a placeholder",
+    };
+  }
   const base = options.paperPolymarketClobBase.replace(/\/$/, "");
-  return `${base}/book?token_id=${encodeURIComponent(options.paperPolymarketTokenId)}`;
+  return { bookUrl: `${base}/book?token_id=${encodeURIComponent(options.paperPolymarketTokenId)}` };
+}
+
+function paperMarketMetadata(
+  options: DryRunHedgeWorkerOptions,
+  diagnostics: PaperMarketDiagnostics = {},
+): Record<string, unknown> {
+  const status = paperLiveStatusFromOptions(options);
+  return {
+    paperTrading: true,
+    marketData: "live",
+    marketDataSource: status.marketDataSource,
+    tokenIdMasked: status.tokenIdMasked,
+    marketDataUrlHost: status.marketDataUrlHost,
+    lastFetchAt: diagnostics.lastFetchAt,
+    fetchErrorCode: diagnostics.fetchErrorCode,
+    source: status.sourceLabel,
+  };
 }
 
 function maskMarketDataUrl(value: string): string {
@@ -462,10 +557,31 @@ function maskMarketDataUrl(value: string): string {
   }
 }
 
+function urlHost(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if (url.protocol === "data:") return "data";
+    return url.host;
+  } catch {
+    return undefined;
+  }
+}
+
 function maskTokenId(value: string): string {
   const normalized = value.trim();
   if (normalized.length <= 12) return normalized;
   return `${normalized.slice(0, 6)}...${normalized.slice(-4)}`;
+}
+
+function isPlaceholderTokenId(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "<readonly-token-id>" ||
+    normalized === "readonly-token-id" ||
+    normalized === "<token-id>" ||
+    normalized === "token-id" ||
+    normalized === "<polymarket-token-id>" ||
+    normalized === "<真实 polymarket token_id>" ||
+    (normalized.startsWith("<") && normalized.endsWith(">"));
 }
 
 function boolOption(cliValue: string | true | undefined, envValue: string | undefined, fallback: boolean): boolean {

@@ -36,8 +36,13 @@ export interface PaperLiveStatus {
   enabled: boolean;
   sourceType: "none" | "market_data_url" | "polymarket_token_id";
   sourceLabel: string;
+  marketDataSource: "none" | "market_data_url" | "polymarket_clob_book";
   marketDataUrlMasked?: string;
+  marketDataUrlHost?: string;
   polymarketTokenIdMasked?: string;
+  tokenIdMasked?: string;
+  lastFetchAt?: string;
+  fetchErrorCode?: string;
   maxSpread: number;
   minDepthUsd: number;
   maxMarketDataAgeMs: number;
@@ -184,8 +189,13 @@ function sanitizePaperLiveStatus(value: unknown): PaperLiveStatus | undefined {
     enabled: input.enabled === true,
     sourceType,
     sourceLabel: stringValue(input.sourceLabel, sourceType === "none" ? "not configured" : sourceType),
+    marketDataSource: marketDataSourceValue(input.marketDataSource, sourceType),
     marketDataUrlMasked: optionalString(input.marketDataUrlMasked),
+    marketDataUrlHost: optionalString(input.marketDataUrlHost),
     polymarketTokenIdMasked: optionalString(input.polymarketTokenIdMasked),
+    tokenIdMasked: optionalString(input.tokenIdMasked),
+    lastFetchAt: optionalString(input.lastFetchAt),
+    fetchErrorCode: optionalString(input.fetchErrorCode),
     maxSpread: finiteNumber(input.maxSpread, 0.05),
     minDepthUsd: finiteNumber(input.minDepthUsd, 1),
     maxMarketDataAgeMs: finiteNumber(input.maxMarketDataAgeMs, 10_000),
@@ -194,6 +204,22 @@ function sanitizePaperLiveStatus(value: unknown): PaperLiveStatus | undefined {
 
 function sourceTypeValue(value: unknown): PaperLiveStatus["sourceType"] {
   return value === "market_data_url" || value === "polymarket_token_id" ? value : "none";
+}
+
+function marketDataSourceValue(
+  value: unknown,
+  sourceType: PaperLiveStatus["sourceType"],
+): PaperLiveStatus["marketDataSource"] {
+  if (
+    value === "market_data_url" ||
+    value === "polymarket_clob_book" ||
+    value === "none"
+  ) {
+    return value;
+  }
+  if (sourceType === "market_data_url") return "market_data_url";
+  if (sourceType === "polymarket_token_id") return "polymarket_clob_book";
+  return "none";
 }
 
 function optionalString(value: unknown): string | undefined {

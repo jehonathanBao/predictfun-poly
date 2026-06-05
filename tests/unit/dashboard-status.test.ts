@@ -112,6 +112,22 @@ describe("dashboard runtime status", () => {
     });
   });
 
+  it("keeps paper-live data fresh at a 15 second worker interval by default", () => {
+    const status = buildDashboardStatus(
+      envelope("paper_live", "2026-06-05T00:00:00.000Z"),
+      {
+        nowMs: Date.parse("2026-06-05T00:00:15.000Z"),
+      },
+    );
+
+    expect(status).toMatchObject({
+      botStatus: "fresh",
+      dataSource: "paper_live",
+      dataAgeMs: 15000,
+      staleThresholdMs: 30000,
+    });
+  });
+
   it("marks paper-live status stale when the orderbook is stale", () => {
     const paperEnvelope = envelope("paper_live", "2026-06-05T00:00:00.000Z");
     paperEnvelope.plans = [
@@ -139,7 +155,7 @@ describe("dashboard runtime status", () => {
 
   it("loads stale threshold from env with a safe fallback", () => {
     expect(dashboardStaleThresholdFromEnv({ DASHBOARD_STALE_DATA_THRESHOLD_MS: "2500" })).toBe(2500);
-    expect(dashboardStaleThresholdFromEnv({ DASHBOARD_STALE_DATA_THRESHOLD_MS: "bad" })).toBe(10000);
+    expect(dashboardStaleThresholdFromEnv({ DASHBOARD_STALE_DATA_THRESHOLD_MS: "bad" })).toBe(30000);
   });
 });
 

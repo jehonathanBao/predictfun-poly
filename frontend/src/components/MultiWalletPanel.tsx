@@ -143,6 +143,11 @@ function PaperLiveBox({ status }: { status: PaperLiveStatus }) {
     <div className="paperLiveBox" aria-label="paper live market data status">
       <WalletMetric label="Paper source" value={status.sourceLabel} />
       <WalletMetric label="Source type" value={sourceTypeLabel(status.sourceType)} />
+      <WalletMetric label="Market data" value={marketDataSourceLabel(status.marketDataSource)} />
+      <WalletMetric label="Token ID" value={status.tokenIdMasked ?? status.polymarketTokenIdMasked ?? "-"} />
+      <WalletMetric label="URL host" value={status.marketDataUrlHost ?? "-"} />
+      <WalletMetric label="Last fetch" value={formatTimestamp(status.lastFetchAt)} />
+      <WalletMetric label="Fetch error" value={status.fetchErrorCode ?? "-"} />
       <WalletMetric label="Max spread" value={formatPct(status.maxSpread)} />
       <WalletMetric label="Min depth" value={formatUsd(status.minDepthUsd)} />
       <WalletMetric label="Max data age" value={`${status.maxMarketDataAgeMs} ms`} />
@@ -206,6 +211,18 @@ function sourceTypeLabel(value: PaperLiveStatus["sourceType"]): string {
   if (value === "market_data_url") return "market URL";
   if (value === "polymarket_token_id") return "token id";
   return "none";
+}
+
+function marketDataSourceLabel(value: PaperLiveStatus["marketDataSource"]): string {
+  if (value === "market_data_url") return "market URL";
+  if (value === "polymarket_clob_book") return "Polymarket CLOB";
+  return "none";
+}
+
+function formatTimestamp(value: string | undefined): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleTimeString() : value;
 }
 
 function formatPct(value: number): string {

@@ -39,8 +39,13 @@ export interface PaperLiveStatus {
   enabled: boolean;
   sourceType: "none" | "market_data_url" | "polymarket_token_id";
   sourceLabel: string;
+  marketDataSource: "none" | "market_data_url" | "polymarket_clob_book";
   marketDataUrlMasked?: string;
+  marketDataUrlHost?: string;
   polymarketTokenIdMasked?: string;
+  tokenIdMasked?: string;
+  lastFetchAt?: string;
+  fetchErrorCode?: string;
   maxSpread: number;
   minDepthUsd: number;
   maxMarketDataAgeMs: number;

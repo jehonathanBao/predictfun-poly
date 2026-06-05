@@ -27,7 +27,7 @@ export interface DashboardStatusOptions extends DashboardDataSourceOptions {
   staleThresholdMs?: number;
 }
 
-export const DEFAULT_DASHBOARD_STALE_DATA_THRESHOLD_MS = 10_000;
+export const DEFAULT_DASHBOARD_STALE_DATA_THRESHOLD_MS = 30_000;
 
 export async function loadDashboardStatus(
   options: DashboardStatusOptions = {},
