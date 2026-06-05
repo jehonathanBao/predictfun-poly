@@ -9,6 +9,8 @@
   },
   "scripts": {
     "dev": "tsx src/main.ts",
+    "bot:dry-run": "tsx src/workers/dry-run-hedge-worker.ts",
+    "bot:dry-run:once": "tsx src/workers/dry-run-hedge-worker.ts --once",
     "dashboard:api": "tsx src/server/hedge-dashboard.ts",
     "dashboard:frontend": "pnpm --dir frontend dev",
     "dashboard:frontend:build": "pnpm --dir frontend build",

@@ -309,12 +309,28 @@ To create a desktop shortcut for the launcher:
 .\create-desktop-shortcut.ps1
 ```
 
-The launcher starts the dry-run API on `http://localhost:3070`, starts the Vite
-frontend on `http://localhost:5173`, and opens the dashboard. The API binds to
-`127.0.0.1` by default and restricts CORS to the local dashboard origins
-`http://localhost:5173` and `http://127.0.0.1:5173`. Override
-`HEDGE_DASHBOARD_API_HOST`, `DASHBOARD_ALLOWED_HOSTS`, or
+The launcher starts the dry-run worker, the dry-run API on
+`http://127.0.0.1:3070`, the Vite frontend on `http://127.0.0.1:5173`, waits
+for the latest hedge plan file and API health checks, then opens the dashboard.
+The API binds to `127.0.0.1` by default and restricts CORS to the local
+dashboard origins `http://localhost:5173` and `http://127.0.0.1:5173`.
+Override `HEDGE_DASHBOARD_API_HOST`, `DASHBOARD_ALLOWED_HOSTS`, or
 `DASHBOARD_ALLOWED_ORIGINS` only for a deliberate local-network setup.
+
+Use these helpers to control the local dashboard stack:
+
+```powershell
+.\scripts\start-dashboard-full.ps1
+.\scripts\stop-dashboard.ps1
+.\scripts\restart-dashboard.ps1
+```
+
+The dry-run worker can also be run directly:
+
+```powershell
+pnpm bot:dry-run
+pnpm bot:dry-run:once
+```
 
 The main API endpoint is `GET /api/hedge-plans`. The response is a dry-run envelope with:
 

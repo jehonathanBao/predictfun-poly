@@ -164,8 +164,18 @@ function record(generatedAt: string, plans: Record<string, unknown>[]) {
     generatedAt,
     source: "unit_test",
     mode: "dry_run" as const,
+    readOnly: true as const,
     liveTradingEnabled: false as const,
     plans,
+    summary: {
+      totalPlans: plans.length,
+      approvedCount: plans.filter((item) => item.riskApproved === true).length,
+      rejectedCount: plans.filter((item) => item.riskApproved !== true).length,
+      maxAbsExposureUsd: plans.reduce((maxExposure, item) => {
+        const exposure = Math.abs(Number(item.netExposureUsd ?? 0));
+        return Number.isFinite(exposure) ? Math.max(maxExposure, exposure) : maxExposure;
+      }, 0),
+    },
   };
 }
 

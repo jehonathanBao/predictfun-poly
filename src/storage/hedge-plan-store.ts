@@ -6,12 +6,9 @@ export interface StoredHedgePlanRecord {
   generatedAt: string;
   source: string;
   mode: "dry_run";
+  readOnly?: true;
   liveTradingEnabled: false;
   plans: unknown[];
-}
-
-export interface SanitizedHedgePlanRecord extends StoredHedgePlanRecord {
-  plans: Record<string, unknown>[];
 }
 
 export interface HedgePlanSummary {
@@ -19,6 +16,12 @@ export interface HedgePlanSummary {
   approvedCount: number;
   rejectedCount: number;
   maxAbsExposureUsd: number;
+}
+
+export interface SanitizedHedgePlanRecord extends StoredHedgePlanRecord {
+  readOnly: true;
+  plans: Record<string, unknown>[];
+  summary: HedgePlanSummary;
 }
 
 export interface DashboardHedgePlanEnvelope extends SanitizedHedgePlanRecord {
@@ -68,14 +71,17 @@ export function sanitizeHedgePlans(payload: unknown): SanitizedHedgePlanRecord {
     : Array.isArray(payload)
       ? payload
       : [];
+  const sanitizedPlans = plans.map(sanitizePlan);
 
   return {
     schemaVersion: 1,
     generatedAt: stringOrNow(input.generatedAt),
     source: typeof input.source === "string" ? input.source : "unknown",
     mode: "dry_run",
+    readOnly: true,
     liveTradingEnabled: false,
-    plans: plans.map(sanitizePlan),
+    plans: sanitizedPlans,
+    summary: summarizeHedgePlans(sanitizedPlans),
   };
 }
 

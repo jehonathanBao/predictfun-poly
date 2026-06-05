@@ -80,6 +80,9 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   if (url.pathname === "/api/health") {
     sendJson(response, 200, {
       ok: true,
+      mode: "dry_run",
+      readOnly: true,
+      liveTradingEnabled: false,
       strategy: "EXPOSURE_HEDGE",
       executable: false,
       dryRun: true,

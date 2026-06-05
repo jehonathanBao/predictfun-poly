@@ -134,6 +134,7 @@ function envelope(
     generatedAt,
     source: "unit_test",
     mode: "dry_run",
+    readOnly: true,
     liveTradingEnabled: false,
     dataSource,
     plans: [],
