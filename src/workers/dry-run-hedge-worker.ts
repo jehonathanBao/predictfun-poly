@@ -8,6 +8,11 @@ import {
   type SanitizedHedgePlanRecord,
   type StoredHedgePlanRecord,
 } from "../storage/hedge-plan-store.js";
+import {
+  isPaperLiveFixtureScenario,
+  paperLiveFixtureResponse,
+  type PaperLiveFixtureScenario,
+} from "./dry-run-paper-live-fixture.js";
 
 export interface DryRunHedgeWorkerOptions {
   intervalMs: number;
@@ -15,6 +20,7 @@ export interface DryRunHedgeWorkerOptions {
   latestPath: string;
   historyPath: string;
   paperLiveMarketData: boolean;
+  paperFixtureScenario?: PaperLiveFixtureScenario;
   paperMarketDataUrl?: string;
   paperPolymarketTokenId?: string;
   paperPolymarketClobBase: string;
@@ -138,6 +144,7 @@ export function parseDryRunHedgeWorkerOptions(
     latestPath: stringOption(args.get("--latest-path"), env.HEDGE_DASHBOARD_LATEST_PATH, DEFAULT_LATEST_HEDGE_PLANS_PATH),
     historyPath: stringOption(args.get("--history-path"), env.HEDGE_DASHBOARD_HISTORY_PATH, DEFAULT_HISTORY_HEDGE_PLANS_PATH),
     paperLiveMarketData: boolOption(args.get("--paper-live-market-data"), env.PAPER_LIVE_MARKET_DATA, false),
+    paperFixtureScenario: fixtureScenarioOption(args.get("--paper-fixture-scenario"), env.PAPER_FIXTURE_SCENARIO),
     paperMarketDataUrl: optionalStringOption(args.get("--paper-market-data-url"), env.PAPER_MARKET_DATA_URL),
     paperPolymarketTokenId: optionalStringOption(args.get("--paper-polymarket-token-id"), env.PAPER_POLYMARKET_TOKEN_ID),
     paperPolymarketClobBase: stringOption(
@@ -170,6 +177,8 @@ export function paperLiveStatusFromOptions(options: Partial<DryRunHedgeWorkerOpt
   const resolved = resolveDryRunHedgeWorkerOptions(options);
   const sourceType = resolved.paperMarketDataUrl
     ? "market_data_url"
+    : resolved.paperFixtureScenario
+      ? "fixture"
     : resolved.paperPolymarketTokenId
       ? "polymarket_token_id"
       : "none";
@@ -184,12 +193,17 @@ export function paperLiveStatusFromOptions(options: Partial<DryRunHedgeWorkerOpt
     ? "market_data_url"
     : sourceType === "polymarket_token_id"
       ? "polymarket_clob_book"
-      : "none";
+      : sourceType === "fixture"
+        ? "fixture"
+        : "none";
   return {
     enabled: resolved.paperLiveMarketData,
     sourceType,
-    sourceLabel: marketDataUrlMasked ?? polymarketTokenIdMasked ?? "not configured",
+    sourceLabel: resolved.paperFixtureScenario
+      ? `fixture:${resolved.paperFixtureScenario}`
+      : marketDataUrlMasked ?? polymarketTokenIdMasked ?? "not configured",
     marketDataSource,
+    fixtureScenario: resolved.paperFixtureScenario,
     marketDataUrlMasked,
     marketDataUrlHost,
     polymarketTokenIdMasked,
@@ -213,6 +227,7 @@ function resolveDryRunHedgeWorkerOptions(options: Partial<DryRunHedgeWorkerOptio
     latestPath: options.latestPath ?? DEFAULT_LATEST_HEDGE_PLANS_PATH,
     historyPath: options.historyPath ?? DEFAULT_HISTORY_HEDGE_PLANS_PATH,
     paperLiveMarketData: options.paperLiveMarketData ?? false,
+    paperFixtureScenario: options.paperFixtureScenario,
     paperMarketDataUrl: options.paperMarketDataUrl,
     paperPolymarketTokenId: options.paperPolymarketTokenId,
     paperPolymarketClobBase: options.paperPolymarketClobBase ?? DEFAULT_PAPER_POLYMARKET_CLOB_BASE,
@@ -250,7 +265,9 @@ async function buildPaperLiveMarketDataPayload(input: {
 
   const lastFetchAt = generatedAt;
   try {
-    const response = await input.fetchFn(bookRequest.bookUrl);
+    const response = input.options.paperFixtureScenario
+      ? fixtureFetch(input.options.paperFixtureScenario)
+      : await input.fetchFn(bookRequest.bookUrl);
     if (!response.ok) {
       const code = response.status === 404
         ? "paper_market_orderbook_not_found"
@@ -511,6 +528,7 @@ function timestampMs(value: unknown): number | undefined {
 }
 
 function paperBookRequest(options: DryRunHedgeWorkerOptions): PaperBookRequest {
+  if (options.paperFixtureScenario) return { bookUrl: `fixture:${options.paperFixtureScenario}` };
   if (options.paperMarketDataUrl) return { bookUrl: options.paperMarketDataUrl };
   if (!options.paperPolymarketTokenId) {
     return {
@@ -615,6 +633,16 @@ function optionalStringOption(cliValue: string | true | undefined, envValue: str
   return undefined;
 }
 
+function fixtureScenarioOption(
+  cliValue: string | true | undefined,
+  envValue: string | undefined,
+): PaperLiveFixtureScenario | undefined {
+  const value = typeof cliValue === "string" ? cliValue : envValue;
+  if (value === undefined || value.trim() === "") return undefined;
+  const normalized = value.trim();
+  return isPaperLiveFixtureScenario(normalized) ? normalized : undefined;
+}
+
 function parseBool(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined || value.trim() === "") return fallback;
   return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
@@ -675,6 +703,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function fixtureFetch(scenario: PaperLiveFixtureScenario): Response {
+  const fixture = paperLiveFixtureResponse(scenario);
+  return new Response(fixture.body, {
+    status: fixture.status,
+    headers: { "content-type": fixture.contentType },
+  });
 }
 
 function isMainModule(): boolean {

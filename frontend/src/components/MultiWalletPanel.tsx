@@ -144,6 +144,7 @@ function PaperLiveBox({ status }: { status: PaperLiveStatus }) {
       <WalletMetric label="Paper source" value={status.sourceLabel} />
       <WalletMetric label="Source type" value={sourceTypeLabel(status.sourceType)} />
       <WalletMetric label="Market data" value={marketDataSourceLabel(status.marketDataSource)} />
+      <WalletMetric label="Fixture" value={status.fixtureScenario ?? "-"} />
       <WalletMetric label="Token ID" value={status.tokenIdMasked ?? status.polymarketTokenIdMasked ?? "-"} />
       <WalletMetric label="URL host" value={status.marketDataUrlHost ?? "-"} />
       <WalletMetric label="Last fetch" value={formatTimestamp(status.lastFetchAt)} />
@@ -208,12 +209,14 @@ function formatUsd(value: number | undefined): string {
 }
 
 function sourceTypeLabel(value: PaperLiveStatus["sourceType"]): string {
+  if (value === "fixture") return "fixture";
   if (value === "market_data_url") return "market URL";
   if (value === "polymarket_token_id") return "token id";
   return "none";
 }
 
 function marketDataSourceLabel(value: PaperLiveStatus["marketDataSource"]): string {
+  if (value === "fixture") return "fixture";
   if (value === "market_data_url") return "market URL";
   if (value === "polymarket_clob_book") return "Polymarket CLOB";
   return "none";

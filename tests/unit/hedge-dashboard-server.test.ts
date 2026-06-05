@@ -520,6 +520,7 @@ describe("dashboard frontend safety copy", () => {
       "frontend/src/App.tsx",
       "frontend/src/components/AccountHealthPanel.tsx",
       "frontend/src/components/DryRunAlertsPanel.tsx",
+      "frontend/src/components/DryRunDiagnosticsPanel.tsx",
       "frontend/src/components/DryRunReportPanel.tsx",
       "frontend/src/components/DryRunSummaryPanel.tsx",
       "frontend/src/components/ExposureTrendPanel.tsx",
@@ -545,6 +546,7 @@ describe("dashboard frontend safety copy", () => {
       "frontend/src/App.tsx",
       "frontend/src/components/AccountHealthPanel.tsx",
       "frontend/src/components/DryRunAlertsPanel.tsx",
+      "frontend/src/components/DryRunDiagnosticsPanel.tsx",
       "frontend/src/components/DryRunReportPanel.tsx",
       "frontend/src/components/DryRunSummaryPanel.tsx",
       "frontend/src/components/ExposureTrendPanel.tsx",
@@ -574,9 +576,13 @@ describe("dashboard frontend safety copy", () => {
     const source = [
       await readFile("frontend/src/components/RuntimeStatusPanel.tsx", "utf8"),
       await readFile("frontend/src/components/MultiWalletPanel.tsx", "utf8"),
+      await readFile("frontend/src/components/DryRunDiagnosticsPanel.tsx", "utf8"),
     ].join("\n");
 
     expect(source).toContain("Paper Mode");
+    expect(source).toContain("Dry-Run Diagnostics");
+    expect(source).toContain("wide spread");
+    expect(source).toContain("shallow depth");
     expect(source).toContain("/api/paper-live-status");
     expect(source).not.toMatch(/Execute hedge/i);
     expect(source).not.toMatch(/Place Order/i);

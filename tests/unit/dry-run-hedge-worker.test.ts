@@ -94,6 +94,7 @@ describe("dry-run hedge worker", () => {
       latestPath: "tmp/latest.json",
       historyPath: "tmp/history.jsonl",
       paperLiveMarketData: false,
+      paperFixtureScenario: undefined,
       paperMarketDataUrl: undefined,
       paperPolymarketTokenId: undefined,
       paperPolymarketClobBase: "https://clob.polymarket.com",
@@ -460,6 +461,7 @@ describe("dry-run hedge worker", () => {
 
     expect(options).toMatchObject({
       paperLiveMarketData: true,
+      paperFixtureScenario: undefined,
       paperMarketDataUrl: "https://example.test/book",
       paperPolymarketTokenId: "token-1",
       paperSimFundsUsd: 30,
@@ -471,6 +473,109 @@ describe("dry-run hedge worker", () => {
       paperMaxMarketDataAgeMs: 10000,
       paperEventKey: "event-paper",
     });
+  });
+
+  it("writes a valid paper-live fixture scenario as an approved dry-run hedge plan", async () => {
+    const now = new Date("2026-06-05T00:00:00.000Z");
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "fixture-valid.latest.json"),
+      historyPath: join(tempDir, "fixture-valid.history.jsonl"),
+      now,
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperFixtureScenario: "valid",
+        paperSimFundsUsd: 100,
+        paperSimNetExposureUsd: 20,
+        paperHedgeRatio: 0.5,
+        paperMaxOrderUsd: 10,
+        paperMinDepthUsd: 10,
+      },
+    });
+
+    expect(written).toMatchObject({
+      source: "paper_live_market_data",
+      mode: "dry_run",
+      readOnly: true,
+      liveTradingEnabled: false,
+      paperLive: {
+        enabled: true,
+        sourceType: "fixture",
+        sourceLabel: "fixture:valid",
+        marketDataSource: "fixture",
+        fixtureScenario: "valid",
+        lastFetchAt: now.toISOString(),
+      },
+      summary: {
+        totalPlans: 1,
+        approvedCount: 1,
+        rejectedCount: 0,
+        maxAbsExposureUsd: 20,
+      },
+    });
+    expect(written.plans[0]).toMatchObject({
+      strategy: "EXPOSURE_HEDGE",
+      hedgeDirection: "SELL",
+      netExposureUsd: 20,
+      hedgeSizeUsd: 10,
+      executable: false,
+      dryRun: true,
+      riskApproved: true,
+      riskCodes: [],
+      metadata: {
+        paperTrading: true,
+        marketData: "live",
+        marketDataSource: "fixture",
+        bestBid: 0.48,
+        bestAsk: 0.52,
+        spread: 0.04,
+        depthUsd: 71.5,
+        lastFetchAt: now.toISOString(),
+        source: "fixture:valid",
+      },
+    });
+  });
+
+  it("writes rejected dry-run plans for unsafe fixture scenarios without throwing", async () => {
+    const scenarios = [
+      ["empty", ["paper_market_depth_unavailable"]],
+      ["malformed", ["paper_orderbook_schema_invalid"]],
+      ["stale", ["paper_orderbook_stale"]],
+      ["wide_spread", ["paper_orderbook_spread_too_wide"]],
+      ["shallow_depth", ["paper_orderbook_depth_insufficient"]],
+    ] as const;
+
+    for (const [scenario, expectedCodes] of scenarios) {
+      const written = await writeDryRunHedgeSnapshot({
+        latestPath: join(tempDir, `${scenario}.latest.json`),
+        historyPath: join(tempDir, `${scenario}.history.jsonl`),
+        now: new Date("2026-06-05T00:00:00.000Z"),
+        workerOptions: {
+          paperLiveMarketData: true,
+          paperFixtureScenario: scenario,
+          paperMaxSpread: 0.05,
+          paperMinDepthUsd: 10,
+          paperMaxMarketDataAgeMs: 1000,
+        },
+      });
+
+      expect(written).toMatchObject({
+        mode: "dry_run",
+        readOnly: true,
+        liveTradingEnabled: false,
+        summary: {
+          totalPlans: 1,
+          approvedCount: 0,
+          rejectedCount: 1,
+        },
+      });
+      expect(written.plans[0]).toMatchObject({
+        executable: false,
+        dryRun: true,
+        riskApproved: false,
+        riskCodes: expect.arrayContaining([...expectedCodes]),
+      });
+    }
   });
 
   it("masks token ids and market data URLs in paper-live status", async () => {

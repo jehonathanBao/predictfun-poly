@@ -13,6 +13,7 @@
     "bot:dry-run:once": "tsx src/workers/dry-run-hedge-worker.ts --once",
     "bot:paper-live": "tsx src/workers/dry-run-hedge-worker.ts --paper-live-market-data",
     "bot:paper-live:once": "tsx src/workers/dry-run-hedge-worker.ts --once --paper-live-market-data",
+    "bot:paper-live:fixture": "tsx src/workers/dry-run-paper-live-fixture.ts",
     "dashboard:api": "tsx src/server/hedge-dashboard.ts",
     "dashboard:frontend": "pnpm --dir frontend dev",
     "dashboard:frontend:build": "pnpm --dir frontend build",

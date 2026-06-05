@@ -607,6 +607,7 @@ h1 {
 }
 
 .dryRunAlertsPanel,
+.diagnosticsPanel,
 .dryRunSummaryPanel,
 .dryRunReportPanel,
 .trendPanel {
@@ -618,6 +619,7 @@ h1 {
 }
 
 .dryRunHeader,
+.diagnosticsHeader,
 .trendHeader {
   display: flex;
   align-items: flex-start;
@@ -627,6 +629,7 @@ h1 {
 }
 
 .dryRunHeader h2,
+.diagnosticsHeader h2,
 .trendHeader h2 {
   color: #101828;
   font-size: 16px;
@@ -634,6 +637,7 @@ h1 {
 }
 
 .dryRunHeader p,
+.diagnosticsHeader p,
 .trendHeader p {
   margin-top: 4px;
   color: #667085;
@@ -653,6 +657,94 @@ h1 {
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.diagnosticsBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diagnosticBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.diagnosticBadge.ok,
+.diagnosticBadge.safe {
+  color: #126143;
+  background: #edf8f3;
+}
+
+.diagnosticBadge.warn {
+  color: #9f2b1f;
+  background: #fff1ef;
+}
+
+.diagnosticBadge.paper {
+  color: #6941c6;
+  background: #f3edff;
+}
+
+.diagnosticsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.diagnosticMetric {
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.diagnosticMetric span {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.diagnosticMetric strong {
+  display: block;
+  margin-top: 7px;
+  color: #101828;
+  font-size: 13px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.diagnosticMetric.ok strong {
+  color: #14714c;
+}
+
+.diagnosticMetric.warn strong {
+  color: #b54708;
+}
+
+.diagnosticsTableShell {
+  overflow: auto;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+}
+
+.diagnosticsTable {
+  min-width: 980px;
+}
+
+.diagnosticsTable th,
+.diagnosticsTable td {
+  padding: 9px 10px;
+  font-size: 12px;
 }
 
 .alertSeverity.warning {

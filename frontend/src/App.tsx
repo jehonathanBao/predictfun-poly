@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccountHealthPanel } from "./components/AccountHealthPanel";
 import { DryRunAlertsPanel } from "./components/DryRunAlertsPanel";
+import { DryRunDiagnosticsPanel } from "./components/DryRunDiagnosticsPanel";
 import { DryRunReportPanel } from "./components/DryRunReportPanel";
 import { DryRunSummaryPanel } from "./components/DryRunSummaryPanel";
 import { ExposureTrendPanel } from "./components/ExposureTrendPanel";
@@ -98,6 +99,8 @@ export function App() {
       <AccountHealthPanel />
 
       <MultiWalletPanel paperLive={dataEnvelope?.paperLive} />
+
+      <DryRunDiagnosticsPanel plans={plans} paperLive={dataEnvelope?.paperLive} />
 
       <DryRunAlertsPanel />
 
@@ -229,7 +232,7 @@ function runtimeStatusFromEnvelope(envelope: HedgePlanEnvelope): DashboardStatus
     dataSource: envelope.dataSource,
     lastUpdated: envelope.generatedAt,
     dataAgeMs: null,
-    staleThresholdMs: 10_000,
+    staleThresholdMs: 30_000,
     planCount: envelope.summary.totalPlans,
     approvedCount: envelope.summary.approvedCount,
     rejectedCount: envelope.summary.rejectedCount,

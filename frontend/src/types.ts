@@ -26,6 +26,25 @@ export interface HedgePlan {
   rejectReason?: string;
   riskCodes: readonly string[];
   riskApproved: boolean;
+  metadata?: HedgePlanMetadata;
+}
+
+export interface HedgePlanMetadata {
+  paperTrading?: boolean;
+  marketData?: string;
+  marketDataSource?: string;
+  tokenIdMasked?: string;
+  marketDataUrlHost?: string;
+  lastFetchAt?: string;
+  fetchErrorCode?: string;
+  simulatedFundsUsd?: number;
+  simulatedNetExposureUsd?: number;
+  bestBid?: number;
+  bestAsk?: number;
+  spread?: number;
+  depthUsd?: number;
+  orderbookTimestampMs?: number;
+  source?: string;
 }
 
 export interface HedgePlanSummary {
@@ -37,9 +56,10 @@ export interface HedgePlanSummary {
 
 export interface PaperLiveStatus {
   enabled: boolean;
-  sourceType: "none" | "market_data_url" | "polymarket_token_id";
+  sourceType: "none" | "fixture" | "market_data_url" | "polymarket_token_id";
   sourceLabel: string;
-  marketDataSource: "none" | "market_data_url" | "polymarket_clob_book";
+  marketDataSource: "none" | "fixture" | "market_data_url" | "polymarket_clob_book";
+  fixtureScenario?: string;
   marketDataUrlMasked?: string;
   marketDataUrlHost?: string;
   polymarketTokenIdMasked?: string;

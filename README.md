@@ -375,6 +375,23 @@ $env:PAPER_MIN_DEPTH_USD="10"
 $env:PAPER_MAX_MARKET_DATA_AGE_MS="10000"
 ```
 
+For a deterministic local orderbook scenario, use the read-only fixture path:
+
+```powershell
+$env:PAPER_LIVE_MARKET_DATA="true"
+$env:PAPER_FIXTURE_SCENARIO="valid"
+pnpm bot:paper-live:once
+```
+
+Supported fixture scenarios are `valid`, `empty`, `malformed`, `stale`,
+`wide_spread`, and `shallow_depth`. To serve them over local HTTP for manual
+testing:
+
+```powershell
+$env:PAPER_FIXTURE_SCENARIO="valid"
+pnpm bot:paper-live:fixture
+```
+
 Paper-live output stays in:
 
 ```text

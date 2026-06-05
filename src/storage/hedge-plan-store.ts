@@ -34,9 +34,10 @@ export type DashboardDataSource =
 
 export interface PaperLiveStatus {
   enabled: boolean;
-  sourceType: "none" | "market_data_url" | "polymarket_token_id";
+  sourceType: "none" | "fixture" | "market_data_url" | "polymarket_token_id";
   sourceLabel: string;
-  marketDataSource: "none" | "market_data_url" | "polymarket_clob_book";
+  marketDataSource: "none" | "fixture" | "market_data_url" | "polymarket_clob_book";
+  fixtureScenario?: string;
   marketDataUrlMasked?: string;
   marketDataUrlHost?: string;
   polymarketTokenIdMasked?: string;
@@ -190,6 +191,7 @@ function sanitizePaperLiveStatus(value: unknown): PaperLiveStatus | undefined {
     sourceType,
     sourceLabel: stringValue(input.sourceLabel, sourceType === "none" ? "not configured" : sourceType),
     marketDataSource: marketDataSourceValue(input.marketDataSource, sourceType),
+    fixtureScenario: optionalString(input.fixtureScenario),
     marketDataUrlMasked: optionalString(input.marketDataUrlMasked),
     marketDataUrlHost: optionalString(input.marketDataUrlHost),
     polymarketTokenIdMasked: optionalString(input.polymarketTokenIdMasked),
@@ -203,7 +205,7 @@ function sanitizePaperLiveStatus(value: unknown): PaperLiveStatus | undefined {
 }
 
 function sourceTypeValue(value: unknown): PaperLiveStatus["sourceType"] {
-  return value === "market_data_url" || value === "polymarket_token_id" ? value : "none";
+  return value === "fixture" || value === "market_data_url" || value === "polymarket_token_id" ? value : "none";
 }
 
 function marketDataSourceValue(
@@ -213,10 +215,12 @@ function marketDataSourceValue(
   if (
     value === "market_data_url" ||
     value === "polymarket_clob_book" ||
+    value === "fixture" ||
     value === "none"
   ) {
     return value;
   }
+  if (sourceType === "fixture") return "fixture";
   if (sourceType === "market_data_url") return "market_data_url";
   if (sourceType === "polymarket_token_id") return "polymarket_clob_book";
   return "none";
