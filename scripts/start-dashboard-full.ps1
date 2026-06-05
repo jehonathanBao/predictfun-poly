@@ -70,8 +70,9 @@ function Test-DashboardApi {
 function Test-FreshDashboardStatus {
   try {
     $status = Invoke-RestMethod -Uri "http://127.0.0.1:3070/api/dashboard-status" -TimeoutSec 2
+    $validDataSource = $status.dataSource -eq "latest_file" -or $status.dataSource -eq "paper_live"
     return $status.apiStatus -eq "ok" `
-      -and $status.dataSource -eq "latest_file" `
+      -and $validDataSource `
       -and $status.botStatus -ne "no_data" `
       -and $status.readOnly -eq $true `
       -and $status.liveTradingEnabled -eq $false

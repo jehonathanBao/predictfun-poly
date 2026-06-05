@@ -26,6 +26,7 @@ describe("dashboard launcher scripts", () => {
     expect(startScript).toContain("/api/dashboard-status");
     expect(startScript).toContain("hedge-plans.latest.json");
     expect(startScript).toContain("latest_file");
+    expect(startScript).toContain("paper_live");
     expect(startScript).toContain("http://127.0.0.1:5173");
   });
 
