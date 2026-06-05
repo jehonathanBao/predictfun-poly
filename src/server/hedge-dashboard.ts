@@ -37,11 +37,12 @@ export interface WalletStatusResponse {
 }
 
 const PORT = Number(process.env.HEDGE_DASHBOARD_API_PORT ?? process.env.PORT ?? 3070);
+const HOST = process.env.HEDGE_DASHBOARD_API_HOST ?? "127.0.0.1";
 
 if (isMainModule()) {
   const server = createDashboardServer();
-  server.listen(PORT, () => {
-    console.log(`Hedge dashboard API listening at http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Hedge dashboard API listening at http://${HOST}:${PORT}`);
   });
 }
 
@@ -58,10 +59,19 @@ export function createDashboardServer() {
 }
 
 async function route(request: IncomingMessage, response: ServerResponse): Promise<void> {
-  setCorsHeaders(response);
+  setCorsHeaders(request, response);
   const url = new URL(request.url ?? "/", "http://localhost");
 
+  if (!isAllowedHost(request)) {
+    sendJson(response, 403, { error: "Dashboard API is local-only" });
+    return;
+  }
+
   if (request.method === "OPTIONS") {
+    if (!isAllowedOrigin(request)) {
+      sendJson(response, 403, { error: "Origin is not allowed" });
+      return;
+    }
     response.writeHead(204);
     response.end();
     return;
@@ -168,10 +178,48 @@ export function walletDashboardConfigFromEnv(env: NodeJS.ProcessEnv = process.en
   };
 }
 
-function setCorsHeaders(response: ServerResponse): void {
-  response.setHeader("Access-Control-Allow-Origin", "*");
+function setCorsHeaders(request: IncomingMessage, response: ServerResponse): void {
+  const origin = request.headers.origin;
+  if (origin && isAllowedOrigin(request)) {
+    response.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  response.setHeader("Vary", "Origin");
   response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function isAllowedOrigin(request: IncomingMessage): boolean {
+  const origin = request.headers.origin;
+  if (!origin) return true;
+  return allowedList(process.env.DASHBOARD_ALLOWED_ORIGINS, [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+  ]).includes(origin);
+}
+
+function isAllowedHost(request: IncomingMessage): boolean {
+  const host = normalizeHostHeader(request.headers.host);
+  if (host === undefined) return true;
+  return allowedList(process.env.DASHBOARD_ALLOWED_HOSTS, ["localhost", "127.0.0.1", "::1"]).includes(host);
+}
+
+function allowedList(raw: string | undefined, defaults: readonly string[]): string[] {
+  if (raw === undefined || raw.trim() === "") return [...defaults];
+  const values = raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value !== "");
+  return values.length > 0 ? values : [...defaults];
+}
+
+function normalizeHostHeader(value: string | undefined): string | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed.startsWith("[")) {
+    const end = trimmed.indexOf("]");
+    return end >= 0 ? trimmed.slice(1, end) : trimmed;
+  }
+  return trimmed.split(":")[0];
 }
 
 function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {

@@ -70,6 +70,7 @@ describe("read-only wallet manager", () => {
       liveTradingEnabled: false,
       readOnly: true,
     });
+    expect(response.predictWallets[0]).not.toHaveProperty("address");
     expect(response.polymarketHedgeWallet).toMatchObject({
       id: "polymarket-hedge",
       venue: "POLYMARKET",
@@ -77,6 +78,9 @@ describe("read-only wallet manager", () => {
       addressMasked: "0x9999...9999",
       availableUsd: 88,
     });
+    expect(response.polymarketHedgeWallet).not.toHaveProperty("address");
+    expect(JSON.stringify(response)).not.toContain("0x1111111111111111111111111111111111111111");
+    expect(JSON.stringify(response)).not.toContain("0x9999999999999999999999999999999999999999");
     expect(response.warnings).toEqual([]);
   });
 
@@ -134,6 +138,8 @@ describe("read-only wallet manager", () => {
     expect(response.liveTradingEnabled).toBe(false);
     expect(response.canExecuteHedge).toBe(false);
     expect(response.warnings).toContain("live_trading_request_ignored_in_wallet_manager");
+    expect(serialized).not.toContain("0x1111111111111111111111111111111111111111");
+    expect(serialized).not.toContain("0x9999999999999999999999999999999999999999");
     expect(serialized).not.toContain("private-key-value");
     expect(serialized).not.toContain("api-secret-value");
     expect(serialized).not.toContain("predict-key-value");

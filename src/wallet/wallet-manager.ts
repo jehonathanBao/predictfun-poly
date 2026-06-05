@@ -22,6 +22,8 @@ export interface WalletInfo {
   status: string;
 }
 
+export type PublicWalletInfo = Omit<WalletInfo, "address">;
+
 export interface WalletManagerState {
   mode: "dry_run";
   readOnly: true;
@@ -63,8 +65,8 @@ export interface WalletManagerDashboardResponse {
     polymarketAvailableUsd: number;
     currentPlannedHedgeUsd: number;
   };
-  predictWallets: readonly WalletInfo[];
-  polymarketHedgeWallet: WalletInfo | null;
+  predictWallets: readonly PublicWalletInfo[];
+  polymarketHedgeWallet: PublicWalletInfo | null;
   warnings: readonly string[];
 }
 
@@ -173,6 +175,8 @@ export function buildWalletManagerDashboardResponse(
   const snapshot = manager.snapshot();
   const predictWallets = snapshot.wallets.filter((wallet) => wallet.role === "predict_account");
   const polymarketWallet = manager.getPolymarketHedgeWallet() ?? null;
+  const publicPredictWallets = predictWallets.map(toPublicWalletInfo);
+  const publicPolymarketWallet = polymarketWallet === null ? null : toPublicWalletInfo(polymarketWallet);
   const allWarnings = [...warnings];
 
   if (predictWallets.length === 0) allWarnings.push("predict_wallets_not_configured");
@@ -206,8 +210,8 @@ export function buildWalletManagerDashboardResponse(
       polymarketAvailableUsd: polymarketWallet?.availableUsd ?? 0,
       currentPlannedHedgeUsd: polymarketWallet?.currentPlannedHedgeUsd ?? 0,
     },
-    predictWallets,
-    polymarketHedgeWallet: polymarketWallet,
+    predictWallets: publicPredictWallets,
+    polymarketHedgeWallet: publicPolymarketWallet,
     warnings: [...new Set(allWarnings)],
   };
 }
@@ -353,6 +357,11 @@ function normalizeWallet(wallet: WalletInfo): WalletInfo {
     chainId: wallet.chainId,
     network: wallet.network,
   });
+}
+
+function toPublicWalletInfo(wallet: WalletInfo): PublicWalletInfo {
+  const { address: _address, ...publicWallet } = wallet;
+  return publicWallet;
 }
 
 function sum(wallets: readonly WalletInfo[], selector: (wallet: WalletInfo) => number): number {

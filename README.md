@@ -310,8 +310,13 @@ To create a desktop shortcut for the launcher:
 ```
 
 The launcher starts the dry-run API on `http://localhost:3070`, starts the Vite
-frontend on `http://localhost:5173`, and opens the dashboard. The API endpoint
-is `GET /api/hedge-plans`. The response is a dry-run envelope with:
+frontend on `http://localhost:5173`, and opens the dashboard. The API binds to
+`127.0.0.1` by default and restricts CORS to the local dashboard origins
+`http://localhost:5173` and `http://127.0.0.1:5173`. Override
+`HEDGE_DASHBOARD_API_HOST`, `DASHBOARD_ALLOWED_HOSTS`, or
+`DASHBOARD_ALLOWED_ORIGINS` only for a deliberate local-network setup.
+
+The main API endpoint is `GET /api/hedge-plans`. The response is a dry-run envelope with:
 
 - `generatedAt`
 - `dataSource`
@@ -339,7 +344,7 @@ GET /api/wallet-manager
 ```
 
 This models up to 10 Predict wallets and exactly one Polymarket hedge wallet
-for observation. The API returns masked addresses, balances, reserved funds,
+for observation. The API returns only masked addresses, balances, reserved funds,
 available funds, Predict YES/NO/net exposure, and the current planned
 Polymarket hedge amount. It is read-only and always returns
 `liveTradingEnabled: false` and `canExecuteHedge: false`; it does not expose

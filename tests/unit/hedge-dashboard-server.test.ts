@@ -1,3 +1,4 @@
+import { request as httpRequest } from "node:http";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,6 +45,8 @@ afterEach(async () => {
   delete process.env.POLYMARKET_HEDGE_WALLET_CONFIGURED;
   delete process.env.HEDGE_MAX_PREDICT_USAGE_PCT;
   delete process.env.HEDGE_ALLOWED_VENUES;
+  delete process.env.DASHBOARD_ALLOWED_ORIGINS;
+  delete process.env.DASHBOARD_ALLOWED_HOSTS;
   await rm(tempDir, { recursive: true, force: true });
 });
 
@@ -114,6 +117,47 @@ describe("hedge dashboard wallet status", () => {
   });
 });
 
+describe("hedge dashboard local-only API guard", () => {
+  it("restricts CORS to local dashboard origins", async () => {
+    const server = createDashboardServer();
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server did not bind to a TCP port");
+
+    try {
+      const blocked = await fetch(`http://127.0.0.1:${address.port}/api/health`, {
+        method: "OPTIONS",
+        headers: { Origin: "http://evil.example" },
+      });
+      expect(blocked.status).toBe(403);
+      expect(blocked.headers.get("access-control-allow-origin")).toBeNull();
+
+      const allowed = await fetch(`http://127.0.0.1:${address.port}/api/health`, {
+        method: "OPTIONS",
+        headers: { Origin: "http://localhost:5173" },
+      });
+      expect(allowed.status).toBe(204);
+      expect(allowed.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("rejects non-local Host headers", async () => {
+    const server = createDashboardServer();
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server did not bind to a TCP port");
+
+    try {
+      const statusCode = await requestStatusCode(address.port, "evil.example");
+      expect(statusCode).toBe(403);
+    } finally {
+      await closeServer(server);
+    }
+  });
+});
+
 describe("hedge dashboard wallet manager API", () => {
   it("builds read-only multi-wallet status without secret material", () => {
     const status = buildWalletManagerDashboardResponse({
@@ -153,6 +197,10 @@ describe("hedge dashboard wallet manager API", () => {
       frontendTransactionsAllowed: false,
     });
     expect(status.warnings).toContain("live_trading_request_ignored_in_wallet_manager");
+    expect(serialized).toContain("0x1111...1111");
+    expect(serialized).toContain("0x9999...9999");
+    expect(serialized).not.toContain("0x1111111111111111111111111111111111111111");
+    expect(serialized).not.toContain("0x9999999999999999999999999999999999999999");
     expect(serialized).not.toContain("private-key-value");
     expect(serialized).not.toContain("api-secret-value");
     expect(serialized).not.toContain("predict-key-value");
@@ -191,6 +239,12 @@ describe("hedge dashboard wallet manager API", () => {
         totalPredictAvailableUsd: 45,
         totalPredictNetExposureUsd: 5,
       });
+      expect(serialized).toContain("0x1111...1111");
+      expect(serialized).toContain("0x2222...2222");
+      expect(serialized).toContain("0x9999...9999");
+      expect(serialized).not.toContain("0x1111111111111111111111111111111111111111");
+      expect(serialized).not.toContain("0x2222222222222222222222222222222222222222");
+      expect(serialized).not.toContain("0x9999999999999999999999999999999999999999");
       expect(serialized).not.toContain("private-key-value");
       expect(serialized).not.toContain("predict-key-value");
       expect(serialized).not.toContain("mnemonic");
@@ -467,3 +521,29 @@ describe("dashboard frontend safety copy", () => {
     expect(source).toContain("disabled");
   });
 });
+
+async function closeServer(server: ReturnType<typeof createDashboardServer>): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+async function requestStatusCode(port: number, hostHeader: string): Promise<number | undefined> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      {
+        hostname: "127.0.0.1",
+        port,
+        path: "/api/health",
+        method: "GET",
+        headers: { Host: hostHeader },
+      },
+      (response) => {
+        response.resume();
+        response.on("end", () => resolve(response.statusCode));
+      },
+    );
+    request.on("error", reject);
+    request.end();
+  });
+}

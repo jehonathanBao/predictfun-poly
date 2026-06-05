@@ -108,7 +108,6 @@ export interface ManagedWallet {
   id: string;
   venue: ManagedWalletVenue;
   role: ManagedWalletRole;
-  address: string;
   addressMasked: string;
   chainId: number | null;
   network: string | null;

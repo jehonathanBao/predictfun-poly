@@ -19,8 +19,8 @@
     "lint": "node ./node_modules/eslint/bin/eslint.js \"src/**/*.ts\" \"test/**/*.ts\" \"tests/**/*.ts\" \"vitest.config.ts\" --max-warnings=0"
   },
   "dependencies": {
-    "@polymarket/clob-client": "latest",
-    "@predictdotfun/sdk": "latest",
+    "@polymarket/clob-client": "5.8.1",
+    "@predictdotfun/sdk": "1.3.5",
     "decimal.js": "^10.4.3",
     "ethers": "^5.8.0",
     "ioredis": "^5.4.1",
@@ -28,6 +28,11 @@
     "pino": "^9.5.0",
     "yaml": "^2.6.1",
     "zod": "^3.23.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "ws": "8.20.1"
+    }
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
