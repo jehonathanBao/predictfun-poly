@@ -45,6 +45,7 @@ export interface HedgePlanMetadata {
   depthUsd?: number;
   orderbookTimestampMs?: number;
   source?: string;
+  paperSimulation?: PaperSimulationStatus;
 }
 
 export interface HedgePlanSummary {
@@ -160,6 +161,18 @@ export interface ManagedWallet {
   liveTradingEnabled: false;
   readOnly: true;
   status: string;
+  paperSimulated?: true;
+}
+
+export interface PaperSimulationStatus {
+  enabled: boolean;
+  predictWalletCount: number;
+  predictWalletFundsUsd: number;
+  polymarketHedgeFundsUsd: number;
+  simulatedNetExposureUsd: number;
+  plannedHedgeUsd: number;
+  realPredictWalletCount: number;
+  realPolymarketHedgeWalletConfigured: boolean;
 }
 
 export interface WalletManagerStatus {
@@ -189,9 +202,29 @@ export interface WalletManagerStatus {
     polymarketAvailableUsd: number;
     currentPlannedHedgeUsd: number;
   };
+  paperSimulation: PaperSimulationStatus;
   predictWallets: ManagedWallet[];
   polymarketHedgeWallet: ManagedWallet | null;
   warnings: readonly string[];
+}
+
+export type OperatorLogLevel = "debug" | "info" | "warn" | "error";
+
+export interface OperatorLogRecord {
+  ts: string;
+  level: OperatorLogLevel;
+  component: string;
+  event: string;
+  message: string;
+  data?: Record<string, unknown>;
+}
+
+export interface OperatorLogResponse {
+  schemaVersion: 1;
+  mode: "dry_run";
+  readOnly: true;
+  liveTradingEnabled: false;
+  records: OperatorLogRecord[];
 }
 
 export interface DryRunTimelinePoint {

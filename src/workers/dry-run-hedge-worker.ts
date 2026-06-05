@@ -13,6 +13,7 @@ import {
   paperLiveFixtureResponse,
   type PaperLiveFixtureScenario,
 } from "./dry-run-paper-live-fixture.js";
+import { appendOperatorLog, DEFAULT_OPERATOR_LOG_PATH } from "../logging/operator-log.js";
 
 export interface DryRunHedgeWorkerOptions {
   intervalMs: number;
@@ -20,6 +21,10 @@ export interface DryRunHedgeWorkerOptions {
   latestPath: string;
   historyPath: string;
   paperLiveMarketData: boolean;
+  paperSimulateWallets: boolean;
+  paperSimPredictWalletCount: number;
+  paperSimPredictWalletFundsUsd: number;
+  paperSimPolymarketHedgeFundsUsd: number;
   paperFixtureScenario?: PaperLiveFixtureScenario;
   paperMarketDataUrl?: string;
   paperPolymarketTokenId?: string;
@@ -34,6 +39,7 @@ export interface DryRunHedgeWorkerOptions {
   paperEventKey: string;
   paperPredictMarketId: string;
   paperHedgeMarketId: string;
+  operatorLogPath: string;
 }
 
 export const DEFAULT_DRY_RUN_WORKER_INTERVAL_MS = 5_000;
@@ -70,6 +76,7 @@ export async function writeDryRunHedgeSnapshot(options: {
   const historyPath = options.historyPath ?? DEFAULT_HISTORY_HEDGE_PLANS_PATH;
   const written = await writeLatestHedgePlans(payload, latestPath);
   await appendHedgePlanHistory(payload, historyPath);
+  await writeWorkerOperatorEvents(written, resolved, latestPath, historyPath);
   return written;
 }
 
@@ -144,6 +151,22 @@ export function parseDryRunHedgeWorkerOptions(
     latestPath: stringOption(args.get("--latest-path"), env.HEDGE_DASHBOARD_LATEST_PATH, DEFAULT_LATEST_HEDGE_PLANS_PATH),
     historyPath: stringOption(args.get("--history-path"), env.HEDGE_DASHBOARD_HISTORY_PATH, DEFAULT_HISTORY_HEDGE_PLANS_PATH),
     paperLiveMarketData: boolOption(args.get("--paper-live-market-data"), env.PAPER_LIVE_MARKET_DATA, false),
+    paperSimulateWallets: boolOption(args.get("--paper-simulate-wallets"), env.PAPER_SIMULATE_WALLETS, false),
+    paperSimPredictWalletCount: integerOption(
+      args.get("--paper-sim-predict-wallet-count"),
+      env.PAPER_SIM_PREDICT_WALLET_COUNT,
+      10,
+    ),
+    paperSimPredictWalletFundsUsd: numberOption(
+      args.get("--paper-sim-predict-wallet-funds-usd"),
+      env.PAPER_SIM_PREDICT_WALLET_FUNDS_USD,
+      100,
+    ),
+    paperSimPolymarketHedgeFundsUsd: numberOption(
+      args.get("--paper-sim-polymarket-hedge-funds-usd"),
+      env.PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD,
+      100,
+    ),
     paperFixtureScenario: fixtureScenarioOption(args.get("--paper-fixture-scenario"), env.PAPER_FIXTURE_SCENARIO),
     paperMarketDataUrl: optionalStringOption(args.get("--paper-market-data-url"), env.PAPER_MARKET_DATA_URL),
     paperPolymarketTokenId: optionalStringOption(args.get("--paper-polymarket-token-id"), env.PAPER_POLYMARKET_TOKEN_ID),
@@ -152,7 +175,11 @@ export function parseDryRunHedgeWorkerOptions(
       env.PAPER_POLYMARKET_CLOB_BASE,
       DEFAULT_PAPER_POLYMARKET_CLOB_BASE,
     ),
-    paperSimFundsUsd: numberOption(args.get("--paper-sim-funds-usd"), env.PAPER_SIM_FUNDS_USD, 100),
+    paperSimFundsUsd: numberOption(
+      args.get("--paper-sim-funds-usd"),
+      firstEnv(env.PAPER_SIM_FUNDS_USD, env.PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD),
+      100,
+    ),
     paperSimNetExposureUsd: signedNumberOption(
       args.get("--paper-sim-net-exposure-usd"),
       env.PAPER_SIM_NET_EXPOSURE_USD,
@@ -170,6 +197,7 @@ export function parseDryRunHedgeWorkerOptions(
     paperEventKey: stringOption(args.get("--paper-event-key"), env.PAPER_EVENT_KEY, "paper-live-market"),
     paperPredictMarketId: stringOption(args.get("--paper-predict-market-id"), env.PAPER_PREDICT_MARKET_ID, "paper-predict"),
     paperHedgeMarketId: stringOption(args.get("--paper-hedge-market-id"), env.PAPER_HEDGE_MARKET_ID, "paper-polymarket"),
+    operatorLogPath: stringOption(args.get("--operator-log-path"), env.OPERATOR_LOG_PATH, DEFAULT_OPERATOR_LOG_PATH),
   });
 }
 
@@ -227,11 +255,18 @@ function resolveDryRunHedgeWorkerOptions(options: Partial<DryRunHedgeWorkerOptio
     latestPath: options.latestPath ?? DEFAULT_LATEST_HEDGE_PLANS_PATH,
     historyPath: options.historyPath ?? DEFAULT_HISTORY_HEDGE_PLANS_PATH,
     paperLiveMarketData: options.paperLiveMarketData ?? false,
+    paperSimulateWallets: options.paperSimulateWallets ?? false,
+    paperSimPredictWalletCount: clampInteger(finiteNumber(options.paperSimPredictWalletCount, 10), 0, 10),
+    paperSimPredictWalletFundsUsd: positiveNumber(options.paperSimPredictWalletFundsUsd, 100),
+    paperSimPolymarketHedgeFundsUsd: positiveNumber(
+      options.paperSimPolymarketHedgeFundsUsd,
+      positiveNumber(options.paperSimFundsUsd, 100),
+    ),
     paperFixtureScenario: options.paperFixtureScenario,
     paperMarketDataUrl: options.paperMarketDataUrl,
     paperPolymarketTokenId: options.paperPolymarketTokenId,
     paperPolymarketClobBase: options.paperPolymarketClobBase ?? DEFAULT_PAPER_POLYMARKET_CLOB_BASE,
-    paperSimFundsUsd: positiveNumber(options.paperSimFundsUsd, 100),
+    paperSimFundsUsd: positiveNumber(options.paperSimFundsUsd, positiveNumber(options.paperSimPolymarketHedgeFundsUsd, 100)),
     paperSimNetExposureUsd: finiteNumber(options.paperSimNetExposureUsd, 10),
     paperHedgeRatio: clampNumber(finiteNumber(options.paperHedgeRatio, 0.5), 0, 1),
     paperMaxOrderUsd: positiveNumber(options.paperMaxOrderUsd, 10),
@@ -241,6 +276,7 @@ function resolveDryRunHedgeWorkerOptions(options: Partial<DryRunHedgeWorkerOptio
     paperEventKey: options.paperEventKey ?? "paper-live-market",
     paperPredictMarketId: options.paperPredictMarketId ?? "paper-predict",
     paperHedgeMarketId: options.paperHedgeMarketId ?? "paper-polymarket",
+    operatorLogPath: options.operatorLogPath ?? process.env.OPERATOR_LOG_PATH ?? DEFAULT_OPERATOR_LOG_PATH,
   };
 }
 
@@ -560,6 +596,153 @@ function paperMarketMetadata(
     lastFetchAt: diagnostics.lastFetchAt,
     fetchErrorCode: diagnostics.fetchErrorCode,
     source: status.sourceLabel,
+    paperSimulation: paperSimulationMetadata(options),
+  };
+}
+
+async function writeWorkerOperatorEvents(
+  written: SanitizedHedgePlanRecord,
+  options: DryRunHedgeWorkerOptions,
+  latestPath: string,
+  historyPath: string,
+): Promise<void> {
+  if (!options.paperLiveMarketData) return;
+  try {
+    const paperLive = paperLiveStatusFromOptions(options);
+    const firstPlan = written.plans[0] ?? {};
+    const riskCodes = Array.isArray(firstPlan.riskCodes) ? firstPlan.riskCodes.map(String) : [];
+    const rejectReason = typeof firstPlan.rejectReason === "string" ? firstPlan.rejectReason : undefined;
+    const metadata = asRecord(firstPlan.metadata);
+    const baseData = {
+      paperLive: true,
+      readOnly: true,
+      liveTradingEnabled: false,
+      marketDataSource: paperLive.marketDataSource,
+      sourceLabel: paperLive.sourceLabel,
+      tokenIdMasked: paperLive.tokenIdMasked,
+      marketDataUrlHost: paperLive.marketDataUrlHost,
+      fixtureScenario: paperLive.fixtureScenario,
+      paperSimulation: paperSimulationMetadata(options),
+    };
+
+    await appendOperatorLog({
+      level: "info",
+      component: "dry-run-worker",
+      event: "paper_live_started",
+      message: "Paper-live dry-run worker started",
+      data: baseData,
+    }, options.operatorLogPath);
+
+    if (options.paperSimulateWallets) {
+      await appendOperatorLog({
+        level: "info",
+        component: "dry-run-worker",
+        event: "paper_sim_wallets_loaded",
+        message: "Paper simulated wallets loaded",
+        data: paperSimulationMetadata(options),
+      }, options.operatorLogPath);
+    }
+
+    if (rejectReason === "paper_market_token_id_missing") {
+      await appendOperatorLog({
+        level: "warn",
+        component: "market-data",
+        event: "market_data_config_missing",
+        message: "Paper-live market data token/url is missing",
+        data: baseData,
+      }, options.operatorLogPath);
+    }
+
+    if (riskCodes.includes("paper_orderbook_schema_invalid")) {
+      await appendOperatorLog({
+        level: "error",
+        component: "market-data",
+        event: "orderbook_schema_invalid",
+        message: "Orderbook schema is invalid",
+        data: { ...baseData, rejectReason, riskCodes },
+      }, options.operatorLogPath);
+    } else if (rejectReason?.startsWith("paper_market_data_") || rejectReason === "paper_market_orderbook_not_found") {
+      await appendOperatorLog({
+        level: "warn",
+        component: "market-data",
+        event: "market_data_fetch_failed",
+        message: "Market data fetch failed",
+        data: { ...baseData, rejectReason, riskCodes },
+      }, options.operatorLogPath);
+    } else if (metadata.bestBid !== undefined || metadata.bestAsk !== undefined) {
+      await appendOperatorLog({
+        level: "info",
+        component: "market-data",
+        event: "market_data_fetch_succeeded",
+        message: "Market data fetch succeeded",
+        data: {
+          ...baseData,
+          bestBid: metadata.bestBid,
+          bestAsk: metadata.bestAsk,
+          spread: metadata.spread,
+          depthUsd: metadata.depthUsd,
+        },
+      }, options.operatorLogPath);
+    }
+
+    await appendOperatorLog({
+      level: riskCodes.length === 0 ? "info" : "warn",
+      component: "dry-run-worker",
+      event: "orderbook_diagnostics_updated",
+      message: "Orderbook diagnostics updated",
+      data: {
+        ...baseData,
+        riskCodes,
+        rejectReason,
+        bestBid: metadata.bestBid,
+        bestAsk: metadata.bestAsk,
+        spread: metadata.spread,
+        depthUsd: metadata.depthUsd,
+      },
+    }, options.operatorLogPath);
+
+    await appendOperatorLog({
+      level: written.summary.rejectedCount > 0 ? "warn" : "info",
+      component: "dry-run-worker",
+      event: "dry_run_plan_created",
+      message: "Dry-run hedge plan created",
+      data: {
+        ...baseData,
+        planCount: written.summary.totalPlans,
+        approvedCount: written.summary.approvedCount,
+        rejectedCount: written.summary.rejectedCount,
+        hedgeSizeUsd: firstPlan.hedgeSizeUsd,
+        executable: false,
+        dryRun: true,
+      },
+    }, options.operatorLogPath);
+
+    await appendOperatorLog({
+      level: "debug",
+      component: "dry-run-worker",
+      event: "latest_file_written",
+      message: "Latest dry-run hedge plan file written",
+      data: { latestPath },
+    }, options.operatorLogPath);
+    await appendOperatorLog({
+      level: "debug",
+      component: "dry-run-worker",
+      event: "history_file_appended",
+      message: "Dry-run hedge plan history appended",
+      data: { historyPath },
+    }, options.operatorLogPath);
+  } catch {
+    // Operator logging is diagnostic-only and must not stop the dry-run worker.
+  }
+}
+
+function paperSimulationMetadata(options: DryRunHedgeWorkerOptions): Record<string, unknown> {
+  return {
+    enabled: options.paperSimulateWallets,
+    predictWalletCount: options.paperSimPredictWalletCount,
+    predictWalletFundsUsd: options.paperSimPredictWalletFundsUsd,
+    polymarketHedgeFundsUsd: options.paperSimPolymarketHedgeFundsUsd,
+    simulatedNetExposureUsd: roundUsd(options.paperSimNetExposureUsd),
   };
 }
 
@@ -617,6 +800,14 @@ function numberOption(
   return numberValue(envValue, fallback);
 }
 
+function integerOption(
+  cliValue: string | true | undefined,
+  envValue: string | undefined,
+  fallback: number,
+): number {
+  return Math.floor(numberOption(cliValue, envValue, fallback));
+}
+
 function stringOption(
   cliValue: string | true | undefined,
   envValue: string | undefined,
@@ -631,6 +822,10 @@ function optionalStringOption(cliValue: string | true | undefined, envValue: str
   if (typeof cliValue === "string" && cliValue.trim() !== "") return cliValue.trim();
   if (envValue !== undefined && envValue.trim() !== "") return envValue.trim();
   return undefined;
+}
+
+function firstEnv(...values: (string | undefined)[]): string | undefined {
+  return values.find((value) => value !== undefined && value.trim() !== "");
 }
 
 function fixtureScenarioOption(
@@ -691,6 +886,10 @@ function finiteNumber(value: unknown, fallback: number): number {
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.floor(clampNumber(value, min, max));
 }
 
 function roundUsd(value: number): number {

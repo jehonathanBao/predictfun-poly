@@ -22,12 +22,21 @@ describe("dashboard launcher scripts", () => {
 
     expect(bat).toContain("scripts\\start-dashboard-full.ps1");
     expect(startScript).toContain("pnpm bot:dry-run");
+    expect(startScript).toContain(".env.paper.local");
+    expect(startScript).toContain("PAPER_LIVE_MARKET_DATA");
+    expect(startScript).toContain("PAPER_SIMULATE_WALLETS");
+    expect(startScript).toContain("PAPER_SIM_PREDICT_WALLET_COUNT");
+    expect(startScript).toContain("PAPER_SIM_PREDICT_WALLET_FUNDS_USD");
+    expect(startScript).toContain("PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD");
+    expect(startScript).toContain("PAPER_SIM_NET_EXPOSURE_USD");
+    expect(startScript).toContain("DRY_RUN_WORKER_INTERVAL_MS");
     expect(startScript).toContain("/api/health");
     expect(startScript).toContain("/api/dashboard-status");
     expect(startScript).toContain("hedge-plans.latest.json");
     expect(startScript).toContain("latest_file");
     expect(startScript).toContain("paper_live");
     expect(startScript).toContain("http://127.0.0.1:5173");
+    expect(startScript).not.toContain('PAPER_FIXTURE_SCENARIO" -Value "valid"');
   });
 
   it("tracks only local project service pid files", async () => {

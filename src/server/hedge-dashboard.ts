@@ -8,8 +8,10 @@ import {
 } from "./dashboard-alerts.js";
 import { loadHedgePlansForDashboard } from "./dashboard-data-source.js";
 import { loadDashboardStatus } from "./dashboard-status.js";
+import { loadOperatorLogsForDashboard } from "./operator-logs.js";
 import { buildWalletManagerDashboardResponse } from "../wallet/wallet-manager.js";
 import { paperLiveStatusFromEnv } from "../workers/dry-run-hedge-worker.js";
+import { appendOperatorLog } from "../logging/operator-log.js";
 
 export interface WalletDashboardConfig {
   enabled: boolean;
@@ -44,6 +46,18 @@ if (isMainModule()) {
   const server = createDashboardServer();
   server.listen(PORT, HOST, () => {
     console.log(`Hedge dashboard API listening at http://${HOST}:${PORT}`);
+    void appendOperatorLog({
+      level: "info",
+      component: "dashboard-api",
+      event: "dashboard_api_started",
+      message: "Dashboard API started",
+      data: {
+        host: HOST,
+        port: PORT,
+        readOnly: true,
+        liveTradingEnabled: false,
+      },
+    }, process.env.OPERATOR_LOG_PATH).catch(() => undefined);
   });
 }
 
@@ -113,6 +127,11 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
 
   if (url.pathname === "/api/paper-live-status") {
     sendJson(response, 200, paperLiveStatusFromEnv(process.env));
+    return;
+  }
+
+  if (url.pathname === "/api/operator-logs") {
+    sendJson(response, 200, await loadOperatorLogsForDashboard(url));
     return;
   }
 

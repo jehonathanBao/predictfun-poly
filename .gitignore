@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+!.env.paper.example
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -22,3 +23,6 @@ data/*.jsonl
 reports/*.json
 reports/*.jsonl
 !reports/.gitkeep
+logs/*.jsonl
+logs/*.log
+!logs/.gitkeep

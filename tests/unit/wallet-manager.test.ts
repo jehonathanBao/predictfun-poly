@@ -95,6 +95,69 @@ describe("read-only wallet manager", () => {
     expect(response.warnings).toContain("predict_wallet_count_exceeds_10");
   });
 
+  it("builds read-only paper simulated wallets when real wallets are absent", () => {
+    const response = buildWalletManagerDashboardResponse({
+      PAPER_SIMULATE_WALLETS: "true",
+      PAPER_SIM_PREDICT_WALLET_COUNT: "10",
+      PAPER_SIM_PREDICT_WALLET_FUNDS_USD: "100",
+      PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD: "100",
+      PAPER_SIM_NET_EXPOSURE_USD: "20",
+      PAPER_HEDGE_RATIO: "0.5",
+      PAPER_MAX_ORDER_USD: "10",
+    }, new Date("2026-06-05T00:00:00.000Z"));
+
+    expect(response).toMatchObject({
+      mode: "dry_run",
+      readOnly: true,
+      liveTradingEnabled: false,
+      canExecuteHedge: false,
+      summary: {
+        predictWalletCount: 10,
+        maxPredictWallets: 10,
+        polymarketHedgeWalletCount: 1,
+        totalPredictBalanceUsd: 1000,
+        totalPredictAvailableUsd: 1000,
+        totalPredictNetExposureUsd: 20,
+        polymarketBalanceUsd: 100,
+        polymarketAvailableUsd: 100,
+        currentPlannedHedgeUsd: 10,
+      },
+      paperSimulation: {
+        enabled: true,
+        predictWalletCount: 10,
+        predictWalletFundsUsd: 100,
+        polymarketHedgeFundsUsd: 100,
+        simulatedNetExposureUsd: 20,
+        plannedHedgeUsd: 10,
+        realPredictWalletCount: 0,
+        realPolymarketHedgeWalletConfigured: false,
+      },
+    });
+    expect(response.predictWallets[0]).toMatchObject({
+      id: "paper-predict-1",
+      addressMasked: "paper-p01",
+      netExposureUsd: 20,
+      status: "paper_simulated",
+      paperSimulated: true,
+      dryRun: true,
+      liveTradingEnabled: false,
+      readOnly: true,
+    });
+    expect(response.polymarketHedgeWallet).toMatchObject({
+      id: "paper-polymarket-hedge",
+      addressMasked: "paper-poly",
+      currentPlannedHedgeUsd: 10,
+      paperSimulated: true,
+    });
+    expect(response.warnings).toEqual(expect.arrayContaining([
+      "paper_simulated_wallets_enabled",
+      "real_predict_wallets_not_configured_using_paper_simulation",
+      "real_polymarket_hedge_wallet_not_configured_using_paper_simulation",
+    ]));
+    expect(response.warnings).not.toContain("predict_wallets_not_configured");
+    expect(response.warnings).not.toContain("polymarket_hedge_wallet_not_configured");
+  });
+
   it("supports in-memory reservations without enabling live execution", () => {
     const manager = new WalletManager([
       walletInfo({

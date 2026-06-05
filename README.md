@@ -325,6 +325,27 @@ Use these helpers to control the local dashboard stack:
 .\scripts\restart-dashboard.ps1
 ```
 
+`start-dashboard-full.ps1` now starts in paper-live dry-run mode by default.
+It loads optional local overrides from `.env.paper.local`, then fills missing
+safe defaults for simulated wallets and exposure:
+
+```text
+PAPER_LIVE_MARKET_DATA=true
+PAPER_SIMULATE_WALLETS=true
+PAPER_SIM_PREDICT_WALLET_COUNT=10
+PAPER_SIM_PREDICT_WALLET_FUNDS_USD=100
+PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD=100
+PAPER_SIM_NET_EXPOSURE_USD=20
+DRY_RUN_WORKER_INTERVAL_MS=5000
+OPERATOR_LOG_PATH=logs/operator-events.jsonl
+```
+
+The launcher does not default `PAPER_FIXTURE_SCENARIO`; if no token id or
+market-data URL is configured, the worker still runs and writes a rejected
+dry-run plan with `paper_market_token_id_missing`. Copy `.env.paper.example`
+to `.env.paper.local` for local-only overrides. `.env.paper.local` and
+runtime logs remain gitignored.
+
 The dry-run worker can also be run directly:
 
 ```powershell
@@ -526,3 +547,15 @@ reports/hedge-dry-run-summary-YYYY-MM-DD.json
 
 These endpoints also force `mode: "dry_run"`, `readOnly: true`, and
 `liveTradingEnabled: false`.
+
+Operator logs are available through:
+
+```text
+GET /api/operator-logs?limit=100
+```
+
+The log stream is read-only and stores paper-live startup events, simulated
+wallet loading, market-data fetch diagnostics, dry-run plan creation, and
+latest/history file writes under `logs/operator-events.jsonl` by default.
+The API supports `level` and `component` filters and redacts token ids, query
+strings, and sensitive fields before returning data to the dashboard.

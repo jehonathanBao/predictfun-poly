@@ -13,9 +13,11 @@ let tempDir: string;
 
 beforeEach(async () => {
   tempDir = await mkdtemp(join(tmpdir(), "dry-run-hedge-worker-"));
+  process.env.OPERATOR_LOG_PATH = join(tempDir, "operator-events.jsonl");
 });
 
 afterEach(async () => {
+  delete process.env.OPERATOR_LOG_PATH;
   await rm(tempDir, { recursive: true, force: true });
 });
 
@@ -94,6 +96,10 @@ describe("dry-run hedge worker", () => {
       latestPath: "tmp/latest.json",
       historyPath: "tmp/history.jsonl",
       paperLiveMarketData: false,
+      paperSimulateWallets: false,
+      paperSimPredictWalletCount: 10,
+      paperSimPredictWalletFundsUsd: 100,
+      paperSimPolymarketHedgeFundsUsd: 100,
       paperFixtureScenario: undefined,
       paperMarketDataUrl: undefined,
       paperPolymarketTokenId: undefined,
@@ -108,6 +114,7 @@ describe("dry-run hedge worker", () => {
       paperEventKey: "paper-live-market",
       paperPredictMarketId: "paper-predict",
       paperHedgeMarketId: "paper-polymarket",
+      operatorLogPath: "logs/operator-events.jsonl",
     });
   });
 
@@ -358,6 +365,10 @@ describe("dry-run hedge worker", () => {
         fetchErrorCode: "paper_market_token_id_missing",
       },
     });
+    const operatorLog = await readFile(process.env.OPERATOR_LOG_PATH!, "utf8");
+    expect(operatorLog).toContain("market_data_config_missing");
+    expect(operatorLog).toContain("dry_run_plan_created");
+    expect(operatorLog).not.toContain("placeOrder");
   });
 
   it("rejects placeholder Polymarket token ids before fetching", async () => {
@@ -461,6 +472,10 @@ describe("dry-run hedge worker", () => {
 
     expect(options).toMatchObject({
       paperLiveMarketData: true,
+      paperSimulateWallets: false,
+      paperSimPredictWalletCount: 10,
+      paperSimPredictWalletFundsUsd: 100,
+      paperSimPolymarketHedgeFundsUsd: 100,
       paperFixtureScenario: undefined,
       paperMarketDataUrl: "https://example.test/book",
       paperPolymarketTokenId: "token-1",
@@ -472,6 +487,31 @@ describe("dry-run hedge worker", () => {
       paperMinDepthUsd: 1,
       paperMaxMarketDataAgeMs: 10000,
       paperEventKey: "event-paper",
+      operatorLogPath: "logs/operator-events.jsonl",
+    });
+  });
+
+  it("parses paper simulation wallet defaults from env", () => {
+    const options = parseDryRunHedgeWorkerOptions([], {
+      PAPER_LIVE_MARKET_DATA: "true",
+      PAPER_SIMULATE_WALLETS: "true",
+      PAPER_SIM_PREDICT_WALLET_COUNT: "12",
+      PAPER_SIM_PREDICT_WALLET_FUNDS_USD: "50",
+      PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD: "75",
+      PAPER_SIM_NET_EXPOSURE_USD: "20",
+      DRY_RUN_WORKER_INTERVAL_MS: "5000",
+      OPERATOR_LOG_PATH: "tmp/operator-events.jsonl",
+    });
+
+    expect(options).toMatchObject({
+      intervalMs: 5000,
+      paperLiveMarketData: true,
+      paperSimulateWallets: true,
+      paperSimPredictWalletCount: 10,
+      paperSimPredictWalletFundsUsd: 50,
+      paperSimPolymarketHedgeFundsUsd: 75,
+      paperSimNetExposureUsd: 20,
+      operatorLogPath: "tmp/operator-events.jsonl",
     });
   });
 

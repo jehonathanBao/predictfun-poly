@@ -1,10 +1,12 @@
-import type { DashboardStatus } from "../types";
+import type { DashboardStatus, PaperLiveStatus } from "../types";
 
 interface RuntimeStatusPanelProps {
   status?: DashboardStatus;
+  paperLive?: PaperLiveStatus;
 }
 
-export function RuntimeStatusPanel({ status }: RuntimeStatusPanelProps) {
+export function RuntimeStatusPanel({ status, paperLive }: RuntimeStatusPanelProps) {
+  const paperEnabled = paperLive?.enabled === true || status?.dataSource === "paper_live";
   return (
     <section className="runtimePanel" aria-label="dashboard runtime status">
       <RuntimeItem label="API Status" value={status?.apiStatus.toUpperCase() ?? "LOADING"} tone="ok" />
@@ -20,7 +22,8 @@ export function RuntimeStatusPanel({ status }: RuntimeStatusPanelProps) {
       <RuntimeItem label="Approved" value={formatNumber(status?.approvedCount)} tone="ok" />
       <RuntimeItem label="Rejected" value={formatNumber(status?.rejectedCount)} tone={status?.rejectedCount ? "warn" : "ok"} />
       <RuntimeItem label="Max Exposure" value={`$${formatNumber(status?.maxAbsExposureUsd)}`} />
-      {status?.dataSource === "paper_live" ? <RuntimeBadge label="Paper Mode" tone="warn" /> : null}
+      {paperEnabled ? <RuntimeBadge label="Paper Mode" tone="warn" /> : null}
+      {paperLive ? <RuntimeBadge label={marketDataBadge(paperLive)} tone={paperLive.fetchErrorCode ? "warn" : "ok"} /> : null}
       <RuntimeBadge label="Read-only" tone="ok" />
       <RuntimeBadge label="Live disabled" tone="ok" />
     </section>
@@ -59,6 +62,16 @@ function statusTone(value: DashboardStatus["botStatus"] | undefined): "ok" | "wa
   if (value === "fresh") return "ok";
   if (value === "stale" || value === "no_data") return "warn";
   return "neutral";
+}
+
+function marketDataBadge(status: PaperLiveStatus): string {
+  if (!status.enabled) return "market data off";
+  if (status.fetchErrorCode === "paper_market_token_id_missing") return "token/url missing";
+  if (status.fetchErrorCode) return status.fetchErrorCode;
+  if (status.marketDataSource === "fixture") return "fixture data";
+  if (status.marketDataSource === "polymarket_clob_book") return "Polymarket data";
+  if (status.marketDataSource === "market_data_url") return "URL data";
+  return "market data missing";
 }
 
 function ageTone(status: DashboardStatus | undefined): "ok" | "warn" | "neutral" {

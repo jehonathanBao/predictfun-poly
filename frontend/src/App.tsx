@@ -7,6 +7,7 @@ import { DryRunSummaryPanel } from "./components/DryRunSummaryPanel";
 import { ExposureTrendPanel } from "./components/ExposureTrendPanel";
 import { HedgePlanTable } from "./components/HedgePlanTable";
 import { MultiWalletPanel } from "./components/MultiWalletPanel";
+import { OperatorLogPanel } from "./components/OperatorLogPanel";
 import { RuntimeStatusPanel } from "./components/RuntimeStatusPanel";
 import { WalletPanel } from "./wallet/WalletPanel";
 import type { DashboardStatus, DryRunSummary, HedgePlan, HedgePlanEnvelope } from "./types";
@@ -92,7 +93,7 @@ export function App() {
         <Metric label="Last Updated" value={lastUpdated} />
       </section>
 
-      <RuntimeStatusPanel status={runtimeStatus} />
+      <RuntimeStatusPanel status={runtimeStatus} paperLive={dataEnvelope?.paperLive} />
 
       <WalletPanel />
 
@@ -101,6 +102,8 @@ export function App() {
       <MultiWalletPanel paperLive={dataEnvelope?.paperLive} />
 
       <DryRunDiagnosticsPanel plans={plans} paperLive={dataEnvelope?.paperLive} />
+
+      <OperatorLogPanel />
 
       <DryRunAlertsPanel />
 

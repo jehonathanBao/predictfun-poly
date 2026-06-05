@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { appendOperatorLog } from "../../src/logging/operator-log.js";
 import { buildAccountHealthResponse } from "../../src/server/account-health.js";
 import {
   buildWalletStatusResponse,
@@ -53,6 +54,7 @@ afterEach(async () => {
   delete process.env.PAPER_MAX_SPREAD;
   delete process.env.PAPER_MIN_DEPTH_USD;
   delete process.env.PAPER_MAX_MARKET_DATA_AGE_MS;
+  delete process.env.OPERATOR_LOG_PATH;
   await rm(tempDir, { recursive: true, force: true });
 });
 
@@ -306,6 +308,65 @@ describe("hedge dashboard paper-live status API", () => {
   });
 });
 
+describe("hedge dashboard operator logs API", () => {
+  it("serves filtered read-only operator logs without raw token material", async () => {
+    const logPath = join(tempDir, "operator-events.jsonl");
+    process.env.OPERATOR_LOG_PATH = logPath;
+    await appendOperatorLog({
+      ts: "2026-06-05T00:00:00.000Z",
+      level: "warn",
+      component: "market-data",
+      event: "market_data_config_missing",
+      message: "missing market data config",
+      data: {
+        tokenId: "1234567890abcdef",
+        url: "https://example.test/book?key=do-not-return",
+        rawToken: "raw-token-value",
+      },
+    }, logPath);
+    await appendOperatorLog({
+      ts: "2026-06-05T00:00:01.000Z",
+      level: "info",
+      component: "dry-run-worker",
+      event: "dry_run_plan_created",
+      message: "plan created",
+    }, logPath);
+
+    const server = createDashboardServer();
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server did not bind to a TCP port");
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/operator-logs?level=warn&component=market-data`);
+      const body = (await response.json()) as Record<string, unknown>;
+      const serialized = JSON.stringify(body);
+
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        schemaVersion: 1,
+        mode: "dry_run",
+        readOnly: true,
+        liveTradingEnabled: false,
+        records: [
+          {
+            level: "warn",
+            component: "market-data",
+            event: "market_data_config_missing",
+          },
+        ],
+      });
+      expect(serialized).toContain("123456...cdef");
+      expect(serialized).toContain("https://example.test/book?...");
+      expect(serialized).not.toContain("1234567890abcdef");
+      expect(serialized).not.toContain("raw-token-value");
+      expect(serialized).not.toContain("do-not-return");
+    } finally {
+      await closeServer(server);
+    }
+  });
+});
+
 describe("hedge dashboard plan API", () => {
   it("serves a dry-run envelope from the configured snapshot", async () => {
     const snapshotPath = join(tempDir, "snapshot.json");
@@ -526,6 +587,7 @@ describe("dashboard frontend safety copy", () => {
       "frontend/src/components/ExposureTrendPanel.tsx",
       "frontend/src/components/HedgePlanTable.tsx",
       "frontend/src/components/MultiWalletPanel.tsx",
+      "frontend/src/components/OperatorLogPanel.tsx",
       "frontend/src/components/RuntimeStatusPanel.tsx",
       "frontend/src/wallet/WalletPanel.tsx",
       "frontend/src/wallet/Web3Provider.tsx",
@@ -551,6 +613,7 @@ describe("dashboard frontend safety copy", () => {
       "frontend/src/components/DryRunSummaryPanel.tsx",
       "frontend/src/components/ExposureTrendPanel.tsx",
       "frontend/src/components/MultiWalletPanel.tsx",
+      "frontend/src/components/OperatorLogPanel.tsx",
       "frontend/src/wallet/WalletPanel.tsx",
       "frontend/src/wallet/Web3Provider.tsx",
       "frontend/src/wallet/readOnlyWalletGuard.ts",
@@ -577,10 +640,13 @@ describe("dashboard frontend safety copy", () => {
       await readFile("frontend/src/components/RuntimeStatusPanel.tsx", "utf8"),
       await readFile("frontend/src/components/MultiWalletPanel.tsx", "utf8"),
       await readFile("frontend/src/components/DryRunDiagnosticsPanel.tsx", "utf8"),
+      await readFile("frontend/src/components/OperatorLogPanel.tsx", "utf8"),
     ].join("\n");
 
     expect(source).toContain("Paper Mode");
     expect(source).toContain("Dry-Run Diagnostics");
+    expect(source).toContain("Operator Logs");
+    expect(source).toContain("/api/operator-logs");
     expect(source).toContain("wide spread");
     expect(source).toContain("shallow depth");
     expect(source).toContain("/api/paper-live-status");

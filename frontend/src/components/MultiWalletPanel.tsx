@@ -42,6 +42,8 @@ export function MultiWalletPanel({ paperLive }: { paperLive?: PaperLiveStatus })
 
   const polymarketWallet = status?.polymarketHedgeWallet;
   const activePaperLive = paperLive ?? paperStatus;
+  const paperSimulation = status?.paperSimulation;
+  const paperSimulationEnabled = paperSimulation?.enabled === true;
 
   return (
     <section className="multiWalletPanel" aria-label="multi wallet manager">
@@ -56,20 +58,23 @@ export function MultiWalletPanel({ paperLive }: { paperLive?: PaperLiveStatus })
       </div>
 
       <div className="walletManagerGrid">
-        <WalletMetric label="Predict wallets" value={formatWalletCount(status)} />
-        <WalletMetric label="Predict available" value={formatUsd(status?.summary.totalPredictAvailableUsd)} />
-        <WalletMetric label="Predict net exposure" value={formatUsd(status?.summary.totalPredictNetExposureUsd)} />
-        <WalletMetric label="Polymarket available" value={formatUsd(status?.summary.polymarketAvailableUsd)} />
-        <WalletMetric label="Planned hedge" value={formatUsd(status?.summary.currentPlannedHedgeUsd)} />
+        <WalletMetric label={paperSimulationEnabled ? "Predict paper wallets" : "Predict wallets"} value={formatWalletCount(status)} />
+        <WalletMetric label={paperSimulationEnabled ? "Predict paper available" : "Predict available"} value={formatUsd(status?.summary.totalPredictAvailableUsd)} />
+        <WalletMetric label={paperSimulationEnabled ? "Simulated net exposure" : "Predict net exposure"} value={formatUsd(status?.summary.totalPredictNetExposureUsd)} />
+        <WalletMetric label={paperSimulationEnabled ? "Polymarket paper available" : "Polymarket available"} value={formatUsd(status?.summary.polymarketAvailableUsd)} />
+        <WalletMetric label={paperSimulationEnabled ? "Paper planned hedge" : "Planned hedge"} value={formatUsd(status?.summary.currentPlannedHedgeUsd)} />
       </div>
 
       <div className="walletManagerBadges">
         <span className="walletManagerBadge safe">read-only</span>
         <span className="walletManagerBadge safe">frontend signing blocked</span>
         <span className="walletManagerBadge safe">frontend transactions blocked</span>
+        {paperSimulationEnabled ? <span className="walletManagerBadge paper">paper wallets</span> : null}
         {activePaperLive?.enabled ? <span className="walletManagerBadge paper">Paper Mode</span> : null}
         <span className="walletManagerBadge warn">single Polymarket hedge wallet</span>
       </div>
+
+      {paperSimulationEnabled && paperSimulation ? <PaperSimulationBox status={paperSimulation} /> : null}
 
       {activePaperLive?.enabled ? <PaperLiveBox status={activePaperLive} /> : null}
 
@@ -138,6 +143,23 @@ export function MultiWalletPanel({ paperLive }: { paperLive?: PaperLiveStatus })
   );
 }
 
+function PaperSimulationBox({ status }: { status: NonNullable<WalletManagerStatus["paperSimulation"]> }) {
+  return (
+    <div className="paperSimulationBox" aria-label="paper simulated wallet status">
+      <WalletMetric label="Paper Predict wallets" value={`${status.predictWalletCount} / 10`} />
+      <WalletMetric label="Funds per Predict wallet" value={formatUsd(status.predictWalletFundsUsd)} />
+      <WalletMetric label="Paper hedge funds" value={formatUsd(status.polymarketHedgeFundsUsd)} />
+      <WalletMetric label="Sim exposure" value={formatUsd(status.simulatedNetExposureUsd)} />
+      <WalletMetric label="Planned hedge" value={formatUsd(status.plannedHedgeUsd)} />
+      <WalletMetric label="Real Predict wallets" value={status.realPredictWalletCount.toString()} />
+      <WalletMetric
+        label="Real Polymarket wallet"
+        value={status.realPolymarketHedgeWalletConfigured ? "configured" : "not configured"}
+      />
+    </div>
+  );
+}
+
 function PaperLiveBox({ status }: { status: PaperLiveStatus }) {
   return (
     <div className="paperLiveBox" aria-label="paper live market data status">
@@ -161,7 +183,10 @@ function PredictWalletRow({ wallet }: { wallet: ManagedWallet }) {
     <tr>
       <td className="mono">{wallet.id}</td>
       <td className="mono">{wallet.addressMasked}</td>
-      <td>{wallet.status}</td>
+      <td>
+        {wallet.status}
+        {wallet.paperSimulated ? <span className="inlinePaperBadge">paper</span> : null}
+      </td>
       <td className="number">{formatUsd(wallet.balanceUsd)}</td>
       <td className="number">{formatUsd(wallet.reservedUsd)}</td>
       <td className="number">{formatUsd(wallet.availableUsd)}</td>

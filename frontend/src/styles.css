@@ -518,11 +518,25 @@ h1 {
   background: #f3edff;
 }
 
-.paperLiveBox {
+.paperLiveBox,
+.paperSimulationBox {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.inlinePaperBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #6941c6;
+  background: #f3edff;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .walletManagerWarning {
@@ -610,6 +624,7 @@ h1 {
 .diagnosticsPanel,
 .dryRunSummaryPanel,
 .dryRunReportPanel,
+.operatorLogPanel,
 .trendPanel {
   margin-bottom: 16px;
   padding: 16px;
@@ -620,6 +635,7 @@ h1 {
 
 .dryRunHeader,
 .diagnosticsHeader,
+.operatorLogHeader,
 .trendHeader {
   display: flex;
   align-items: flex-start;
@@ -630,6 +646,7 @@ h1 {
 
 .dryRunHeader h2,
 .diagnosticsHeader h2,
+.operatorLogHeader h2,
 .trendHeader h2 {
   color: #101828;
   font-size: 16px;
@@ -638,10 +655,110 @@ h1 {
 
 .dryRunHeader p,
 .diagnosticsHeader p,
+.operatorLogHeader p,
 .trendHeader p {
   margin-top: 4px;
   color: #667085;
   font-size: 13px;
+}
+
+.operatorLogBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.operatorLogBadge,
+.operatorLogLevel {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.operatorLogBadge.safe,
+.operatorLogLevel.info,
+.operatorLogLevel.debug {
+  color: #126143;
+  background: #edf8f3;
+}
+
+.operatorLogLevel.warn {
+  color: #765b12;
+  background: #fff8e6;
+}
+
+.operatorLogLevel.error {
+  color: #9f2b1f;
+  background: #fff1ef;
+}
+
+.operatorLogControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.operatorLogFilterGroup {
+  display: inline-grid;
+  grid-template-columns: repeat(5, minmax(58px, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #cfd7e2;
+  border-radius: 8px;
+  background: #e8edf3;
+}
+
+.operatorLogFilterGroup.components {
+  grid-template-columns: repeat(4, minmax(70px, 1fr));
+}
+
+.operatorLogFilterGroup button {
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  color: #475467;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.operatorLogFilterGroup button.active {
+  color: #101828;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 12%);
+}
+
+.operatorLogError {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #f0b8ad;
+  border-radius: 8px;
+  color: #912018;
+  background: #fff1ef;
+  font-size: 13px;
+}
+
+.operatorLogTableShell {
+  overflow: auto;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+}
+
+.operatorLogTable {
+  min-width: 1180px;
+}
+
+.operatorLogTable th,
+.operatorLogTable td {
+  padding: 9px 10px;
+  font-size: 12px;
 }
 
 .dryRunMode,
@@ -1235,7 +1352,8 @@ tbody tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .paperLiveBox {
+  .paperLiveBox,
+  .paperSimulationBox {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1296,7 +1414,8 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 
-  .paperLiveBox {
+  .paperLiveBox,
+  .paperSimulationBox {
     grid-template-columns: 1fr;
   }
 

@@ -28,6 +28,113 @@ function Write-LauncherLog {
   Write-Host $Message
 }
 
+function Import-PaperEnvFile {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+
+  foreach ($line in Get-Content -LiteralPath $Path) {
+    $trimmed = $line.Trim()
+    if ($trimmed -eq "" -or $trimmed.StartsWith("#")) {
+      continue
+    }
+
+    $separatorIndex = $trimmed.IndexOf("=")
+    if ($separatorIndex -le 0) {
+      continue
+    }
+
+    $name = $trimmed.Substring(0, $separatorIndex).Trim()
+    if ($name -notmatch "^[A-Za-z_][A-Za-z0-9_]*$") {
+      continue
+    }
+
+    if ([Environment]::GetEnvironmentVariable($name, "Process")) {
+      continue
+    }
+
+    $value = $trimmed.Substring($separatorIndex + 1).Trim()
+    if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+
+    [Environment]::SetEnvironmentVariable($name, $value, "Process")
+  }
+
+  Write-LauncherLog "Loaded paper environment defaults from $Path"
+}
+
+function Set-DefaultEnv {
+  param(
+    [Parameter(Mandatory = $true)][string]$Name,
+    [Parameter(Mandatory = $true)][string]$Value
+  )
+
+  if (-not [Environment]::GetEnvironmentVariable($Name, "Process")) {
+    [Environment]::SetEnvironmentVariable($Name, $Value, "Process")
+  }
+}
+
+function Get-UrlHost {
+  param([string]$Value)
+
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return "-"
+  }
+  try {
+    return ([System.Uri]$Value).Host
+  } catch {
+    return "custom"
+  }
+}
+
+function Mask-TokenForLog {
+  param([string]$Value)
+
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return "-"
+  }
+  $normalized = $Value.Trim()
+  if ($normalized.Length -le 12) {
+    return $normalized
+  }
+  return "{0}...{1}" -f $normalized.Substring(0, 6), $normalized.Substring($normalized.Length - 4)
+}
+
+function Initialize-PaperDefaults {
+  $paperEnvPath = Join-Path $ProjectRoot ".env.paper.local"
+  Import-PaperEnvFile -Path $paperEnvPath
+
+  Set-DefaultEnv -Name "PAPER_LIVE_MARKET_DATA" -Value "true"
+  Set-DefaultEnv -Name "PAPER_SIMULATE_WALLETS" -Value "true"
+  Set-DefaultEnv -Name "PAPER_SIM_PREDICT_WALLET_COUNT" -Value "10"
+  Set-DefaultEnv -Name "PAPER_SIM_PREDICT_WALLET_FUNDS_USD" -Value "100"
+  Set-DefaultEnv -Name "PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD" -Value "100"
+  Set-DefaultEnv -Name "PAPER_SIM_NET_EXPOSURE_USD" -Value "20"
+  Set-DefaultEnv -Name "DRY_RUN_WORKER_INTERVAL_MS" -Value "5000"
+
+  $marketDataStatus = "missing token/url"
+  if (-not [string]::IsNullOrWhiteSpace($env:PAPER_MARKET_DATA_URL)) {
+    $marketDataStatus = "url host: {0}" -f (Get-UrlHost $env:PAPER_MARKET_DATA_URL)
+  } elseif (-not [string]::IsNullOrWhiteSpace($env:PAPER_POLYMARKET_TOKEN_ID)) {
+    $marketDataStatus = "token id: {0}" -f (Mask-TokenForLog $env:PAPER_POLYMARKET_TOKEN_ID)
+  } elseif (-not [string]::IsNullOrWhiteSpace($env:PAPER_FIXTURE_SCENARIO)) {
+    $marketDataStatus = "fixture: {0}" -f $env:PAPER_FIXTURE_SCENARIO
+  }
+
+  Write-LauncherLog "Paper startup defaults:"
+  Write-LauncherLog "  paper live: $env:PAPER_LIVE_MARKET_DATA"
+  Write-LauncherLog "  simulated wallets: $env:PAPER_SIMULATE_WALLETS"
+  Write-LauncherLog "  Predict paper wallets: $env:PAPER_SIM_PREDICT_WALLET_COUNT"
+  Write-LauncherLog "  Predict wallet funds: $env:PAPER_SIM_PREDICT_WALLET_FUNDS_USD USD each"
+  Write-LauncherLog "  Polymarket hedge funds: $env:PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD USD"
+  Write-LauncherLog "  simulated net exposure: $env:PAPER_SIM_NET_EXPOSURE_USD USD"
+  Write-LauncherLog "  worker interval: $env:DRY_RUN_WORKER_INTERVAL_MS ms"
+  Write-LauncherLog "  market data: $marketDataStatus"
+}
+
 function Start-ManagedProcess {
   param(
     [Parameter(Mandatory = $true)][string]$Name,
@@ -145,6 +252,7 @@ Set-Location -LiteralPath $ProjectRoot
 $env:HEDGE_DASHBOARD_LATEST_PATH = $LatestPath
 $env:HEDGE_DASHBOARD_HISTORY_PATH = $HistoryPath
 Remove-Item Env:\HEDGE_DASHBOARD_SNAPSHOT -ErrorAction SilentlyContinue
+Initialize-PaperDefaults
 
 Write-LauncherLog "Starting Predict hedge dry-run dashboard from $ProjectRoot"
 
