@@ -47,6 +47,12 @@ afterEach(async () => {
   delete process.env.HEDGE_ALLOWED_VENUES;
   delete process.env.DASHBOARD_ALLOWED_ORIGINS;
   delete process.env.DASHBOARD_ALLOWED_HOSTS;
+  delete process.env.PAPER_LIVE_MARKET_DATA;
+  delete process.env.PAPER_MARKET_DATA_URL;
+  delete process.env.PAPER_POLYMARKET_TOKEN_ID;
+  delete process.env.PAPER_MAX_SPREAD;
+  delete process.env.PAPER_MIN_DEPTH_USD;
+  delete process.env.PAPER_MAX_MARKET_DATA_AGE_MS;
   await rm(tempDir, { recursive: true, force: true });
 });
 
@@ -253,6 +259,46 @@ describe("hedge dashboard wallet manager API", () => {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
       });
+    }
+  });
+});
+
+describe("hedge dashboard paper-live status API", () => {
+  it("serves masked paper-live market data configuration", async () => {
+    process.env.PAPER_LIVE_MARKET_DATA = "true";
+    process.env.PAPER_MARKET_DATA_URL = "https://example.test/book?api_secret=do-not-return";
+    process.env.PAPER_POLYMARKET_TOKEN_ID = "1234567890abcdef";
+    process.env.PAPER_MAX_SPREAD = "0.04";
+    process.env.PAPER_MIN_DEPTH_USD = "12";
+    process.env.PAPER_MAX_MARKET_DATA_AGE_MS = "3000";
+
+    const server = createDashboardServer();
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server did not bind to a TCP port");
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/paper-live-status`);
+      const body = (await response.json()) as Record<string, unknown>;
+      const serialized = JSON.stringify(body);
+
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        enabled: true,
+        sourceType: "market_data_url",
+        sourceLabel: "https://example.test/book?...",
+        marketDataUrlMasked: "https://example.test/book?...",
+        polymarketTokenIdMasked: "123456...cdef",
+        maxSpread: 0.04,
+        minDepthUsd: 12,
+        maxMarketDataAgeMs: 3000,
+      });
+      expect(serialized).not.toContain("do-not-return");
+      expect(serialized).not.toContain("api_secret=do-not-return");
+      expect(serialized).not.toContain("privateKey");
+      expect(serialized).not.toContain("mnemonic");
+    } finally {
+      await closeServer(server);
     }
   });
 });
@@ -519,6 +565,20 @@ describe("dashboard frontend safety copy", () => {
     expect(source).toContain("dry-run");
     expect(source).toContain("Live trading");
     expect(source).toContain("disabled");
+  });
+
+  it("renders paper mode as a read-only badge", async () => {
+    const source = [
+      await readFile("frontend/src/components/RuntimeStatusPanel.tsx", "utf8"),
+      await readFile("frontend/src/components/MultiWalletPanel.tsx", "utf8"),
+    ].join("\n");
+
+    expect(source).toContain("Paper Mode");
+    expect(source).toContain("/api/paper-live-status");
+    expect(source).not.toMatch(/Execute hedge/i);
+    expect(source).not.toMatch(/Place Order/i);
+    expect(source).not.toContain("sendTransaction");
+    expect(source).not.toContain("signMessage");
   });
 });
 

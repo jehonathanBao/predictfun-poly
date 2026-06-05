@@ -355,6 +355,17 @@ $env:PAPER_POLYMARKET_TOKEN_ID="<readonly-token-id>"
 .\scripts\restart-dashboard.ps1
 ```
 
+Paper-live validation emits `dataSource: "paper_live"` and surfaces
+orderbook issues in `riskCodes` / `rejectReason`, including malformed levels,
+out-of-range prices, stale orderbook timestamps, wide spreads, and low depth.
+Optional validation knobs:
+
+```powershell
+$env:PAPER_MAX_SPREAD="0.05"
+$env:PAPER_MIN_DEPTH_USD="10"
+$env:PAPER_MAX_MARKET_DATA_AGE_MS="10000"
+```
+
 Paper-live output stays in:
 
 ```text

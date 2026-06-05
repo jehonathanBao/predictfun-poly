@@ -4,6 +4,7 @@ import {
   DEFAULT_HISTORY_HEDGE_PLANS_PATH,
   DEFAULT_LATEST_HEDGE_PLANS_PATH,
   writeLatestHedgePlans,
+  type PaperLiveStatus,
   type SanitizedHedgePlanRecord,
   type StoredHedgePlanRecord,
 } from "../storage/hedge-plan-store.js";
@@ -21,6 +22,9 @@ export interface DryRunHedgeWorkerOptions {
   paperSimNetExposureUsd: number;
   paperHedgeRatio: number;
   paperMaxOrderUsd: number;
+  paperMaxSpread: number;
+  paperMinDepthUsd: number;
+  paperMaxMarketDataAgeMs: number;
   paperEventKey: string;
   paperPredictMarketId: string;
   paperHedgeMarketId: string;
@@ -149,10 +153,42 @@ export function parseDryRunHedgeWorkerOptions(
     ),
     paperHedgeRatio: boundedNumberOption(args.get("--paper-hedge-ratio"), env.PAPER_HEDGE_RATIO, 0.5, 0, 1),
     paperMaxOrderUsd: numberOption(args.get("--paper-max-order-usd"), env.PAPER_MAX_ORDER_USD, 10),
+    paperMaxSpread: boundedNumberOption(args.get("--paper-max-spread"), env.PAPER_MAX_SPREAD, 0.05, 0, 1),
+    paperMinDepthUsd: numberOption(args.get("--paper-min-depth-usd"), env.PAPER_MIN_DEPTH_USD, 1),
+    paperMaxMarketDataAgeMs: numberOption(
+      args.get("--paper-max-market-data-age-ms"),
+      env.PAPER_MAX_MARKET_DATA_AGE_MS,
+      10_000,
+    ),
     paperEventKey: stringOption(args.get("--paper-event-key"), env.PAPER_EVENT_KEY, "paper-live-market"),
     paperPredictMarketId: stringOption(args.get("--paper-predict-market-id"), env.PAPER_PREDICT_MARKET_ID, "paper-predict"),
     paperHedgeMarketId: stringOption(args.get("--paper-hedge-market-id"), env.PAPER_HEDGE_MARKET_ID, "paper-polymarket"),
   });
+}
+
+export function paperLiveStatusFromOptions(options: Partial<DryRunHedgeWorkerOptions>): PaperLiveStatus {
+  const resolved = resolveDryRunHedgeWorkerOptions(options);
+  const sourceType = resolved.paperMarketDataUrl
+    ? "market_data_url"
+    : resolved.paperPolymarketTokenId
+      ? "polymarket_token_id"
+      : "none";
+  const marketDataUrlMasked = resolved.paperMarketDataUrl ? maskMarketDataUrl(resolved.paperMarketDataUrl) : undefined;
+  const polymarketTokenIdMasked = resolved.paperPolymarketTokenId ? maskTokenId(resolved.paperPolymarketTokenId) : undefined;
+  return {
+    enabled: resolved.paperLiveMarketData,
+    sourceType,
+    sourceLabel: marketDataUrlMasked ?? polymarketTokenIdMasked ?? "not configured",
+    marketDataUrlMasked,
+    polymarketTokenIdMasked,
+    maxSpread: resolved.paperMaxSpread,
+    minDepthUsd: resolved.paperMinDepthUsd,
+    maxMarketDataAgeMs: resolved.paperMaxMarketDataAgeMs,
+  };
+}
+
+export function paperLiveStatusFromEnv(env: NodeJS.ProcessEnv = process.env): PaperLiveStatus {
+  return paperLiveStatusFromOptions(parseDryRunHedgeWorkerOptions([], env));
 }
 
 function resolveDryRunHedgeWorkerOptions(options: Partial<DryRunHedgeWorkerOptions>): DryRunHedgeWorkerOptions {
@@ -171,6 +207,9 @@ function resolveDryRunHedgeWorkerOptions(options: Partial<DryRunHedgeWorkerOptio
     paperSimNetExposureUsd: finiteNumber(options.paperSimNetExposureUsd, 10),
     paperHedgeRatio: clampNumber(finiteNumber(options.paperHedgeRatio, 0.5), 0, 1),
     paperMaxOrderUsd: positiveNumber(options.paperMaxOrderUsd, 10),
+    paperMaxSpread: clampNumber(finiteNumber(options.paperMaxSpread, 0.05), 0, 1),
+    paperMinDepthUsd: positiveNumber(options.paperMinDepthUsd, 1),
+    paperMaxMarketDataAgeMs: positiveNumber(options.paperMaxMarketDataAgeMs, 10_000),
     paperEventKey: options.paperEventKey ?? "paper-live-market",
     paperPredictMarketId: options.paperPredictMarketId ?? "paper-predict",
     paperHedgeMarketId: options.paperHedgeMarketId ?? "paper-polymarket",
@@ -185,7 +224,7 @@ async function buildPaperLiveMarketDataPayload(input: {
   const generatedAt = (input.now ?? new Date()).toISOString();
   const bookUrl = paperBookUrl(input.options);
   if (bookUrl === undefined) {
-    return paperPayload(generatedAt, [
+    return paperPayload(input.options, generatedAt, [
       paperRejectedPlan(input.options, "paper_market_data_not_configured", "no paper market data URL or Polymarket token id configured"),
     ]);
   }
@@ -193,16 +232,16 @@ async function buildPaperLiveMarketDataPayload(input: {
   try {
     const response = await input.fetchFn(bookUrl);
     if (!response.ok) {
-      return paperPayload(generatedAt, [
+      return paperPayload(input.options, generatedAt, [
         paperRejectedPlan(input.options, "paper_market_data_fetch_failed", `market data HTTP ${response.status}`),
       ]);
     }
 
     const book = parsePaperOrderBook(await response.json());
     const plan = buildPaperPlanFromBook(input.options, book);
-    return paperPayload(generatedAt, [plan]);
+    return paperPayload(input.options, generatedAt, [plan]);
   } catch (error) {
-    return paperPayload(generatedAt, [
+    return paperPayload(input.options, generatedAt, [
       paperRejectedPlan(
         input.options,
         "paper_market_data_fetch_failed",
@@ -212,7 +251,7 @@ async function buildPaperLiveMarketDataPayload(input: {
   }
 }
 
-function paperPayload(generatedAt: string, plans: unknown[]): StoredHedgePlanRecord {
+function paperPayload(options: DryRunHedgeWorkerOptions, generatedAt: string, plans: unknown[]): StoredHedgePlanRecord {
   return {
     schemaVersion: 1,
     generatedAt,
@@ -221,6 +260,7 @@ function paperPayload(generatedAt: string, plans: unknown[]): StoredHedgePlanRec
     readOnly: true,
     liveTradingEnabled: false,
     plans,
+    paperLive: paperLiveStatusFromOptions(options),
   };
 }
 
@@ -235,7 +275,15 @@ function buildPaperPlanFromBook(options: DryRunHedgeWorkerOptions, book: PaperOr
     ? 0
     : roundUsd(Math.min(requestedUsd, options.paperMaxOrderUsd, options.paperSimFundsUsd, depthUsd));
   const spread = book.asks[0] && book.bids[0] ? roundUsd(book.asks[0].price - book.bids[0].price) : undefined;
-  const rejectReason = top === undefined || hedgeSizeUsd <= 0 ? "paper_market_depth_unavailable" : undefined;
+  const riskCodes = new Set(book.warningCodes);
+  if (spread !== undefined && spread > options.paperMaxSpread) riskCodes.add("paper_market_spread_too_wide");
+  if (depthUsd < options.paperMinDepthUsd) riskCodes.add("paper_market_depth_too_low");
+  if (book.timestampMs !== undefined && Date.now() - book.timestampMs > options.paperMaxMarketDataAgeMs) {
+    riskCodes.add("paper_orderbook_stale");
+  }
+  if (top === undefined || hedgeSizeUsd <= 0) riskCodes.add("paper_market_depth_unavailable");
+  const riskCodeList = [...riskCodes];
+  const rejectReason = riskCodeList[0];
   const exposureAfterUsd = roundUsd(netExposureUsd >= 0 ? netExposureUsd - hedgeSizeUsd : netExposureUsd + hedgeSizeUsd);
 
   return {
@@ -265,11 +313,11 @@ function buildPaperPlanFromBook(options: DryRunHedgeWorkerOptions, book: PaperOr
     dryRun: true,
     postOnly: true,
     rejectReason,
-    riskApproved: rejectReason === undefined,
-    riskCodes: rejectReason === undefined ? [] : [rejectReason],
+    riskApproved: riskCodeList.length === 0,
+    riskCodes: riskCodeList,
     risk: {
-      approved: rejectReason === undefined,
-      reasonCodes: rejectReason === undefined ? [] : [rejectReason],
+      approved: riskCodeList.length === 0,
+      reasonCodes: riskCodeList,
     },
     metadata: {
       paperTrading: true,
@@ -280,7 +328,8 @@ function buildPaperPlanFromBook(options: DryRunHedgeWorkerOptions, book: PaperOr
       bestAsk: book.asks[0]?.price,
       spread,
       depthUsd,
-      sourceUrl: paperBookUrl(options),
+      orderbookTimestampMs: book.timestampMs,
+      source: paperLiveStatusFromOptions(options).sourceLabel,
     },
   };
 }
@@ -327,6 +376,8 @@ function paperRejectedPlan(
 interface PaperOrderBook {
   bids: PaperOrderBookLevel[];
   asks: PaperOrderBookLevel[];
+  warningCodes: string[];
+  timestampMs?: number;
 }
 
 interface PaperOrderBookLevel {
@@ -338,31 +389,58 @@ function parsePaperOrderBook(payload: unknown): PaperOrderBook {
   const record = asRecord(payload);
   const nestedBook = asRecord(record.book ?? record.orderbook ?? record.data);
   const source = Array.isArray(record.bids) || Array.isArray(record.asks) ? record : nestedBook;
+  const warningCodes: string[] = [];
+  if (!Array.isArray(source.bids)) warningCodes.push("paper_orderbook_bids_missing");
+  if (!Array.isArray(source.asks)) warningCodes.push("paper_orderbook_asks_missing");
 
   return {
-    bids: levels(source.bids).sort((left, right) => right.price - left.price),
-    asks: levels(source.asks).sort((left, right) => left.price - right.price),
+    bids: levels(source.bids, warningCodes).sort((left, right) => right.price - left.price),
+    asks: levels(source.asks, warningCodes).sort((left, right) => left.price - right.price),
+    warningCodes: [...new Set(warningCodes)],
+    timestampMs: timestampMs(source.timestampMs ?? source.timestamp ?? source.updatedAt ?? source.lastUpdated),
   };
 }
 
-function levels(value: unknown): PaperOrderBookLevel[] {
+function levels(value: unknown, warningCodes: string[]): PaperOrderBookLevel[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => {
       if (Array.isArray(item)) {
-        return level(item[0], item[1]);
+        return level(item[0], item[1], warningCodes);
       }
       const record = asRecord(item);
-      return level(record.price ?? record.p, record.size ?? record.quantity ?? record.q);
+      return level(record.price ?? record.p, record.size ?? record.quantity ?? record.q, warningCodes);
     })
     .filter((item): item is PaperOrderBookLevel => item !== undefined);
 }
 
-function level(priceValue: unknown, sizeValue: unknown): PaperOrderBookLevel | undefined {
+function level(priceValue: unknown, sizeValue: unknown, warningCodes: string[]): PaperOrderBookLevel | undefined {
   const price = Number(priceValue);
   const size = Number(sizeValue);
-  if (!Number.isFinite(price) || !Number.isFinite(size) || price <= 0 || size <= 0) return undefined;
+  if (!Number.isFinite(price) || !Number.isFinite(size) || size <= 0) {
+    warningCodes.push("paper_orderbook_level_malformed");
+    return undefined;
+  }
+  if (price < 0 || price > 1) {
+    warningCodes.push("paper_orderbook_price_out_of_range");
+    return undefined;
+  }
+  if (price === 0) {
+    warningCodes.push("paper_orderbook_level_malformed");
+    return undefined;
+  }
   return { price, size };
+}
+
+function timestampMs(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
 }
 
 function paperBookUrl(options: DryRunHedgeWorkerOptions): string | undefined {
@@ -370,6 +448,24 @@ function paperBookUrl(options: DryRunHedgeWorkerOptions): string | undefined {
   if (!options.paperPolymarketTokenId) return undefined;
   const base = options.paperPolymarketClobBase.replace(/\/$/, "");
   return `${base}/book?token_id=${encodeURIComponent(options.paperPolymarketTokenId)}`;
+}
+
+function maskMarketDataUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol === "data:") return "data:application/json,<redacted>";
+    url.search = url.search ? "?..." : "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value.length <= 24 ? value : `${value.slice(0, 16)}...${value.slice(-6)}`;
+  }
+}
+
+function maskTokenId(value: string): string {
+  const normalized = value.trim();
+  if (normalized.length <= 12) return normalized;
+  return `${normalized.slice(0, 6)}...${normalized.slice(-4)}`;
 }
 
 function boolOption(cliValue: string | true | undefined, envValue: string | undefined, fallback: boolean): boolean {

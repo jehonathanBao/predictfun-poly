@@ -20,6 +20,7 @@ export function RuntimeStatusPanel({ status }: RuntimeStatusPanelProps) {
       <RuntimeItem label="Approved" value={formatNumber(status?.approvedCount)} tone="ok" />
       <RuntimeItem label="Rejected" value={formatNumber(status?.rejectedCount)} tone={status?.rejectedCount ? "warn" : "ok"} />
       <RuntimeItem label="Max Exposure" value={`$${formatNumber(status?.maxAbsExposureUsd)}`} />
+      {status?.dataSource === "paper_live" ? <RuntimeBadge label="Paper Mode" tone="warn" /> : null}
       <RuntimeBadge label="Read-only" tone="ok" />
       <RuntimeBadge label="Live disabled" tone="ok" />
     </section>

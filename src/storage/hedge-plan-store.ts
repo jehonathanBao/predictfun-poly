@@ -9,6 +9,7 @@ export interface StoredHedgePlanRecord {
   readOnly?: true;
   liveTradingEnabled: false;
   plans: unknown[];
+  paperLive?: PaperLiveStatus;
 }
 
 export interface HedgePlanSummary {
@@ -24,8 +25,26 @@ export interface SanitizedHedgePlanRecord extends StoredHedgePlanRecord {
   summary: HedgePlanSummary;
 }
 
+export type DashboardDataSource =
+  | "snapshot_env"
+  | "latest_file"
+  | "paper_live"
+  | "example_snapshot"
+  | "empty_fallback";
+
+export interface PaperLiveStatus {
+  enabled: boolean;
+  sourceType: "none" | "market_data_url" | "polymarket_token_id";
+  sourceLabel: string;
+  marketDataUrlMasked?: string;
+  polymarketTokenIdMasked?: string;
+  maxSpread: number;
+  minDepthUsd: number;
+  maxMarketDataAgeMs: number;
+}
+
 export interface DashboardHedgePlanEnvelope extends SanitizedHedgePlanRecord {
-  dataSource: "snapshot_env" | "latest_file" | "example_snapshot" | "empty_fallback";
+  dataSource: DashboardDataSource;
   summary: HedgePlanSummary;
 }
 
@@ -82,6 +101,7 @@ export function sanitizeHedgePlans(payload: unknown): SanitizedHedgePlanRecord {
     liveTradingEnabled: false,
     plans: sanitizedPlans,
     summary: summarizeHedgePlans(sanitizedPlans),
+    paperLive: sanitizePaperLiveStatus(input.paperLive),
   };
 }
 
@@ -154,6 +174,35 @@ function stringValue(value: unknown, fallback = ""): string {
     return value.toString();
   }
   return fallback;
+}
+
+function sanitizePaperLiveStatus(value: unknown): PaperLiveStatus | undefined {
+  const input = asRecord(value);
+  if (Object.keys(input).length === 0) return undefined;
+  const sourceType = sourceTypeValue(input.sourceType);
+  return {
+    enabled: input.enabled === true,
+    sourceType,
+    sourceLabel: stringValue(input.sourceLabel, sourceType === "none" ? "not configured" : sourceType),
+    marketDataUrlMasked: optionalString(input.marketDataUrlMasked),
+    polymarketTokenIdMasked: optionalString(input.polymarketTokenIdMasked),
+    maxSpread: finiteNumber(input.maxSpread, 0.05),
+    minDepthUsd: finiteNumber(input.minDepthUsd, 1),
+    maxMarketDataAgeMs: finiteNumber(input.maxMarketDataAgeMs, 10_000),
+  };
+}
+
+function sourceTypeValue(value: unknown): PaperLiveStatus["sourceType"] {
+  return value === "market_data_url" || value === "polymarket_token_id" ? value : "none";
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function isMissingFile(error: unknown): boolean {

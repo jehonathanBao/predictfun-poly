@@ -35,15 +35,28 @@ export interface HedgePlanSummary {
   maxAbsExposureUsd: number;
 }
 
+export interface PaperLiveStatus {
+  enabled: boolean;
+  sourceType: "none" | "market_data_url" | "polymarket_token_id";
+  sourceLabel: string;
+  marketDataUrlMasked?: string;
+  polymarketTokenIdMasked?: string;
+  maxSpread: number;
+  minDepthUsd: number;
+  maxMarketDataAgeMs: number;
+}
+
 export interface HedgePlanEnvelope {
   schemaVersion: 1;
   generatedAt: string;
-  dataSource: "snapshot_env" | "latest_file" | "example_snapshot" | "empty_fallback";
+  dataSource: "snapshot_env" | "latest_file" | "paper_live" | "example_snapshot" | "empty_fallback";
   source: string;
   mode: "dry_run";
+  readOnly: true;
   liveTradingEnabled: false;
   plans: HedgePlan[];
   summary: HedgePlanSummary;
+  paperLive?: PaperLiveStatus;
 }
 
 export type DashboardBotStatus = "fresh" | "stale" | "no_data";

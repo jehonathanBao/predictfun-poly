@@ -28,7 +28,7 @@ export async function loadHedgePlansForDashboard(
   }
 
   const latest = await readJsonIfExists(latestPath);
-  if (latest !== undefined) return toEnvelope(latest, "latest_file");
+  if (latest !== undefined) return toEnvelope(latest, latestDataSource(latest));
 
   const example = await readJsonIfExists(examplePath);
   if (example !== undefined) return toEnvelope(example, "example_snapshot");
@@ -53,6 +53,11 @@ function toEnvelope(payload: unknown, dataSource: DashboardHedgePlanEnvelope["da
     dataSource,
     summary: summarizeHedgePlans(sanitized.plans),
   };
+}
+
+function latestDataSource(payload: unknown): DashboardHedgePlanEnvelope["dataSource"] {
+  const record = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+  return record.source === "paper_live_market_data" || record.paperLive !== undefined ? "paper_live" : "latest_file";
 }
 
 function normalizePayload(payload: unknown): SanitizedHedgePlanRecord {

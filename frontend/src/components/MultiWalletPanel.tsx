@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import type { ManagedWallet, WalletManagerStatus } from "../types";
+import type { ManagedWallet, PaperLiveStatus, WalletManagerStatus } from "../types";
 
 const WALLET_MANAGER_URL = import.meta.env.VITE_WALLET_MANAGER_URL ?? "/api/wallet-manager";
+const PAPER_LIVE_STATUS_URL = import.meta.env.VITE_PAPER_LIVE_STATUS_URL ?? "/api/paper-live-status";
 
-export function MultiWalletPanel() {
+export function MultiWalletPanel({ paperLive }: { paperLive?: PaperLiveStatus }) {
   const [status, setStatus] = useState<WalletManagerStatus>();
+  const [paperStatus, setPaperStatus] = useState<PaperLiveStatus>();
   const [error, setError] = useState<string>();
 
   useEffect(() => {
@@ -12,11 +14,16 @@ export function MultiWalletPanel() {
 
     async function load() {
       try {
-        const response = await fetch(WALLET_MANAGER_URL);
-        if (!response.ok) throw new Error(`wallet manager API returned ${response.status}`);
-        const payload = (await response.json()) as WalletManagerStatus;
+        const [walletResponse, paperResponse] = await Promise.all([
+          fetch(WALLET_MANAGER_URL),
+          fetch(PAPER_LIVE_STATUS_URL),
+        ]);
+        if (!walletResponse.ok) throw new Error(`wallet manager API returned ${walletResponse.status}`);
+        const payload = (await walletResponse.json()) as WalletManagerStatus;
+        const paperPayload = paperResponse.ok ? ((await paperResponse.json()) as PaperLiveStatus) : undefined;
         if (!active) return;
         setStatus(payload);
+        setPaperStatus(paperPayload);
         setError(undefined);
       } catch (loadError) {
         if (!active) return;
@@ -34,6 +41,7 @@ export function MultiWalletPanel() {
   }, []);
 
   const polymarketWallet = status?.polymarketHedgeWallet;
+  const activePaperLive = paperLive ?? paperStatus;
 
   return (
     <section className="multiWalletPanel" aria-label="multi wallet manager">
@@ -42,7 +50,9 @@ export function MultiWalletPanel() {
           <h2>Wallet Manager</h2>
           <p>Read-only view of Predict wallets and the single Polymarket hedge wallet</p>
         </div>
-        <span className="multiWalletMode">dry-run</span>
+        <span className={`multiWalletMode ${activePaperLive?.enabled ? "paper" : ""}`}>
+          {activePaperLive?.enabled ? "Paper Mode" : "dry-run"}
+        </span>
       </div>
 
       <div className="walletManagerGrid">
@@ -57,8 +67,11 @@ export function MultiWalletPanel() {
         <span className="walletManagerBadge safe">read-only</span>
         <span className="walletManagerBadge safe">frontend signing blocked</span>
         <span className="walletManagerBadge safe">frontend transactions blocked</span>
+        {activePaperLive?.enabled ? <span className="walletManagerBadge paper">Paper Mode</span> : null}
         <span className="walletManagerBadge warn">single Polymarket hedge wallet</span>
       </div>
+
+      {activePaperLive?.enabled ? <PaperLiveBox status={activePaperLive} /> : null}
 
       {error ? <div className="walletManagerWarning">{error}</div> : null}
 
@@ -125,6 +138,18 @@ export function MultiWalletPanel() {
   );
 }
 
+function PaperLiveBox({ status }: { status: PaperLiveStatus }) {
+  return (
+    <div className="paperLiveBox" aria-label="paper live market data status">
+      <WalletMetric label="Paper source" value={status.sourceLabel} />
+      <WalletMetric label="Source type" value={sourceTypeLabel(status.sourceType)} />
+      <WalletMetric label="Max spread" value={formatPct(status.maxSpread)} />
+      <WalletMetric label="Min depth" value={formatUsd(status.minDepthUsd)} />
+      <WalletMetric label="Max data age" value={`${status.maxMarketDataAgeMs} ms`} />
+    </div>
+  );
+}
+
 function PredictWalletRow({ wallet }: { wallet: ManagedWallet }) {
   return (
     <tr>
@@ -175,4 +200,14 @@ function formatUsd(value: number | undefined): string {
     maximumFractionDigits: 2,
     minimumFractionDigits: 0,
   }).format(value)}`;
+}
+
+function sourceTypeLabel(value: PaperLiveStatus["sourceType"]): string {
+  if (value === "market_data_url") return "market URL";
+  if (value === "polymarket_token_id") return "token id";
+  return "none";
+}
+
+function formatPct(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
 }

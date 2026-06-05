@@ -9,6 +9,7 @@ import {
 import { loadHedgePlansForDashboard } from "./dashboard-data-source.js";
 import { loadDashboardStatus } from "./dashboard-status.js";
 import { buildWalletManagerDashboardResponse } from "../wallet/wallet-manager.js";
+import { paperLiveStatusFromEnv } from "../workers/dry-run-hedge-worker.js";
 
 export interface WalletDashboardConfig {
   enabled: boolean;
@@ -107,6 +108,11 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
 
   if (url.pathname === "/api/wallet-manager") {
     sendJson(response, 200, buildWalletManagerDashboardResponse(process.env));
+    return;
+  }
+
+  if (url.pathname === "/api/paper-live-status") {
+    sendJson(response, 200, paperLiveStatusFromEnv(process.env));
     return;
   }
 

@@ -97,7 +97,7 @@ export function App() {
 
       <AccountHealthPanel />
 
-      <MultiWalletPanel />
+      <MultiWalletPanel paperLive={dataEnvelope?.paperLive} />
 
       <DryRunAlertsPanel />
 
@@ -195,6 +195,7 @@ function normalizeHedgePlanResponse(value: unknown): HedgePlanEnvelope {
       dataSource: "empty_fallback",
       source: "legacy_array_response",
       mode: "dry_run",
+      readOnly: true,
       liveTradingEnabled: false,
       plans,
       summary: {

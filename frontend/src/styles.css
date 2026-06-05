@@ -445,6 +445,11 @@ h1 {
   white-space: nowrap;
 }
 
+.multiWalletMode.paper {
+  color: #765b12;
+  background: #fff8e6;
+}
+
 .walletManagerGrid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -506,6 +511,18 @@ h1 {
 .walletManagerWarningPill {
   color: #765b12;
   background: #fff8e6;
+}
+
+.walletManagerBadge.paper {
+  color: #6941c6;
+  background: #f3edff;
+}
+
+.paperLiveBox {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .walletManagerWarning {
@@ -1126,6 +1143,10 @@ tbody tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .paperLiveBox {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .walletManagerSplit {
     grid-template-columns: 1fr;
   }
@@ -1180,6 +1201,10 @@ tbody tr:last-child td {
   }
 
   .walletManagerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .paperLiveBox {
     grid-template-columns: 1fr;
   }
 

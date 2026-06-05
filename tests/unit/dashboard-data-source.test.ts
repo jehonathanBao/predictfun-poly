@@ -50,6 +50,41 @@ describe("dashboard hedge plan data source", () => {
     });
   });
 
+  it("marks paper-live worker output as paper_live data source", async () => {
+    const latestPath = join(tempDir, "paper-live.json");
+    await writeJson(latestPath, {
+      schemaVersion: 1,
+      generatedAt: "2026-06-05T00:00:00.000Z",
+      source: "paper_live_market_data",
+      mode: "dry_run",
+      readOnly: true,
+      liveTradingEnabled: false,
+      plans: [],
+      paperLive: {
+        enabled: true,
+        sourceType: "polymarket_token_id",
+        sourceLabel: "token...1234",
+        polymarketTokenIdMasked: "token...1234",
+        maxSpread: 0.05,
+        minDepthUsd: 1,
+        maxMarketDataAgeMs: 10000,
+      },
+    });
+
+    const envelope = await loadHedgePlansForDashboard({
+      latestPath,
+      examplePath: join(tempDir, "missing-example.json"),
+    });
+
+    expect(envelope.dataSource).toBe("paper_live");
+    expect(envelope.paperLive).toMatchObject({
+      enabled: true,
+      sourceType: "polymarket_token_id",
+      sourceLabel: "token...1234",
+    });
+  });
+
+
   it("falls back to an empty dry-run envelope when no files exist", async () => {
     const envelope = await loadHedgePlansForDashboard({
       latestPath: join(tempDir, "missing-latest.json"),

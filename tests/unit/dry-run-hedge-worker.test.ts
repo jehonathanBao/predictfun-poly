@@ -101,6 +101,9 @@ describe("dry-run hedge worker", () => {
       paperSimNetExposureUsd: 10,
       paperHedgeRatio: 0.5,
       paperMaxOrderUsd: 10,
+      paperMaxSpread: 0.05,
+      paperMinDepthUsd: 1,
+      paperMaxMarketDataAgeMs: 10000,
       paperEventKey: "paper-live-market",
       paperPredictMarketId: "paper-predict",
       paperHedgeMarketId: "paper-polymarket",
@@ -149,6 +152,12 @@ describe("dry-run hedge worker", () => {
       mode: "dry_run",
       readOnly: true,
       liveTradingEnabled: false,
+      paperLive: {
+        enabled: true,
+        sourceType: "market_data_url",
+        sourceLabel: "https://example.test/orderbook.json",
+        marketDataUrlMasked: "https://example.test/orderbook.json",
+      },
       summary: {
         totalPlans: 1,
         approvedCount: 1,
@@ -183,7 +192,126 @@ describe("dry-run hedge worker", () => {
         bestBid: 0.48,
         bestAsk: 0.52,
         spread: 0.04,
+        source: "https://example.test/orderbook.json",
       },
+    });
+  });
+
+  it("rejects malformed orderbooks without throwing", async () => {
+    const latestPath = join(tempDir, "paper-malformed.latest.json");
+    const historyPath = join(tempDir, "paper-malformed.history.jsonl");
+    const fetchFn = async () => new Response("{not-json", { status: 200 });
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath,
+      historyPath,
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn,
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/bad.json",
+      },
+    });
+
+    expect(written.plans[0]).toMatchObject({
+      executable: false,
+      dryRun: true,
+      rejectReason: "paper_market_data_fetch_failed",
+      riskApproved: false,
+      riskCodes: ["paper_market_data_fetch_failed"],
+    });
+  });
+
+  it("flags missing bids and asks as dry-run risk codes", async () => {
+    const fetchFn = async () => new Response(JSON.stringify({ bids: [] }), { status: 200 });
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "missing-book.latest.json"),
+      historyPath: join(tempDir, "missing-book.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn,
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/missing.json",
+      },
+    });
+
+    expect(written.plans[0]).toMatchObject({
+      executable: false,
+      dryRun: true,
+      rejectReason: "paper_orderbook_asks_missing",
+      riskApproved: false,
+      riskCodes: expect.arrayContaining(["paper_orderbook_asks_missing", "paper_market_depth_too_low"]),
+    });
+  });
+
+  it("flags malformed levels and price range violations", async () => {
+    const fetchFn = async () =>
+      new Response(
+        JSON.stringify({
+          bids: [{ price: "1.2", size: "100" }, { price: "bad", size: "10" }],
+          asks: [{ price: "0.51", size: "100" }],
+        }),
+        { status: 200 },
+      );
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "range.latest.json"),
+      historyPath: join(tempDir, "range.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn,
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/range.json",
+      },
+    });
+
+    expect(written.plans[0]?.riskCodes).toEqual(
+      expect.arrayContaining(["paper_orderbook_price_out_of_range", "paper_orderbook_level_malformed"]),
+    );
+    expect(written.plans[0]).toMatchObject({
+      executable: false,
+      dryRun: true,
+      riskApproved: false,
+    });
+  });
+
+  it("flags wide spread, low depth, and stale market data", async () => {
+    const staleTimestamp = Date.parse("2020-01-01T00:00:00.000Z");
+    const fetchFn = async () =>
+      new Response(
+        JSON.stringify({
+          timestampMs: staleTimestamp,
+          bids: [{ price: "0.1", size: "1" }],
+          asks: [{ price: "0.9", size: "1" }],
+        }),
+        { status: 200 },
+      );
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "stale.latest.json"),
+      historyPath: join(tempDir, "stale.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn,
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/stale.json",
+        paperMaxSpread: 0.05,
+        paperMinDepthUsd: 10,
+        paperMaxMarketDataAgeMs: 1000,
+      },
+    });
+
+    expect(written.plans[0]).toMatchObject({
+      executable: false,
+      dryRun: true,
+      rejectReason: "paper_market_spread_too_wide",
+      riskApproved: false,
+      riskCodes: expect.arrayContaining([
+        "paper_market_spread_too_wide",
+        "paper_market_depth_too_low",
+        "paper_orderbook_stale",
+      ]),
     });
   });
 
@@ -241,8 +369,44 @@ describe("dry-run hedge worker", () => {
       paperSimNetExposureUsd: -15,
       paperHedgeRatio: 0.25,
       paperMaxOrderUsd: 7,
+      paperMaxSpread: 0.05,
+      paperMinDepthUsd: 1,
+      paperMaxMarketDataAgeMs: 10000,
       paperEventKey: "event-paper",
     });
+  });
+
+  it("masks token ids and market data URLs in paper-live status", async () => {
+    const fetchFn = async () =>
+      new Response(
+        JSON.stringify({
+          bids: [[0.48, 100]],
+          asks: [[0.52, 100]],
+        }),
+        { status: 200 },
+      );
+
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "masked.latest.json"),
+      historyPath: join(tempDir, "masked.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      fetchFn,
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperMarketDataUrl: "https://example.test/book?api_secret=do-not-return",
+        paperPolymarketTokenId: "1234567890abcdef",
+      },
+    });
+
+    const serialized = JSON.stringify(written);
+    expect(written.paperLive).toMatchObject({
+      sourceType: "market_data_url",
+      sourceLabel: "https://example.test/book?...",
+      marketDataUrlMasked: "https://example.test/book?...",
+      polymarketTokenIdMasked: "123456...cdef",
+    });
+    expect(serialized).not.toContain("do-not-return");
+    expect(serialized).not.toContain("api_secret=do-not-return");
   });
 
   it("does not include execution or wallet signing calls", async () => {

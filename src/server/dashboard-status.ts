@@ -94,7 +94,11 @@ function calculateFreshness(
   lastUpdated: string | null;
   dataAgeMs: number | null;
 } {
-  if (envelope.dataSource !== "latest_file" && envelope.dataSource !== "snapshot_env") {
+  if (
+    envelope.dataSource !== "latest_file" &&
+    envelope.dataSource !== "paper_live" &&
+    envelope.dataSource !== "snapshot_env"
+  ) {
     return { botStatus: "no_data", lastUpdated: null, dataAgeMs: null };
   }
 
@@ -104,8 +108,12 @@ function calculateFreshness(
   }
 
   const dataAgeMs = Math.max(0, nowMs - generatedMs);
+  const hasStaleOrderbook = envelope.plans.some((plan) => {
+    const riskCodes = Array.isArray(plan.riskCodes) ? plan.riskCodes : [];
+    return riskCodes.includes("paper_orderbook_stale");
+  });
   return {
-    botStatus: dataAgeMs <= staleThresholdMs ? "fresh" : "stale",
+    botStatus: dataAgeMs <= staleThresholdMs && !hasStaleOrderbook ? "fresh" : "stale",
     lastUpdated: envelope.generatedAt,
     dataAgeMs,
   };

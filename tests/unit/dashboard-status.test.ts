@@ -95,6 +95,48 @@ describe("dashboard runtime status", () => {
     expect(status.dataAgeMs).toBeNull();
   });
 
+  it("treats paper-live latest data as fresh", () => {
+    const status = buildDashboardStatus(
+      envelope("paper_live", "2026-06-05T00:00:00.000Z"),
+      {
+        nowMs: Date.parse("2026-06-05T00:00:01.000Z"),
+        staleThresholdMs: 10_000,
+      },
+    );
+
+    expect(status).toMatchObject({
+      botStatus: "fresh",
+      dataSource: "paper_live",
+      lastUpdated: "2026-06-05T00:00:00.000Z",
+      dataAgeMs: 1000,
+    });
+  });
+
+  it("marks paper-live status stale when the orderbook is stale", () => {
+    const paperEnvelope = envelope("paper_live", "2026-06-05T00:00:00.000Z");
+    paperEnvelope.plans = [
+      {
+        riskApproved: false,
+        riskCodes: ["paper_orderbook_stale"],
+      },
+    ];
+    paperEnvelope.summary = {
+      totalPlans: 1,
+      approvedCount: 0,
+      rejectedCount: 1,
+      maxAbsExposureUsd: 0,
+    };
+
+    const status = buildDashboardStatus(paperEnvelope, {
+      nowMs: Date.parse("2026-06-05T00:00:01.000Z"),
+      staleThresholdMs: 10_000,
+    });
+
+    expect(status.botStatus).toBe("stale");
+    expect(status.dataSource).toBe("paper_live");
+  });
+
+
   it("loads stale threshold from env with a safe fallback", () => {
     expect(dashboardStaleThresholdFromEnv({ DASHBOARD_STALE_DATA_THRESHOLD_MS: "2500" })).toBe(2500);
     expect(dashboardStaleThresholdFromEnv({ DASHBOARD_STALE_DATA_THRESHOLD_MS: "bad" })).toBe(10000);
