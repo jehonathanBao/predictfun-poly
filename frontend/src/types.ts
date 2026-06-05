@@ -101,6 +101,62 @@ export interface AccountHealth {
   warnings: readonly string[];
 }
 
+export type ManagedWalletVenue = "PREDICT" | "POLYMARKET";
+export type ManagedWalletRole = "predict_account" | "polymarket_hedge";
+
+export interface ManagedWallet {
+  id: string;
+  venue: ManagedWalletVenue;
+  role: ManagedWalletRole;
+  address: string;
+  addressMasked: string;
+  chainId: number | null;
+  network: string | null;
+  balanceUsd: number;
+  reservedUsd: number;
+  availableUsd: number;
+  yesExposureUsd: number;
+  noExposureUsd: number;
+  netExposureUsd: number;
+  currentPlannedHedgeUsd: number;
+  dryRun: true;
+  liveTradingEnabled: false;
+  readOnly: true;
+  status: string;
+}
+
+export interface WalletManagerStatus {
+  schemaVersion: 1;
+  mode: "dry_run";
+  readOnly: true;
+  liveTradingEnabled: false;
+  canExecuteHedge: false;
+  generatedAt: string;
+  walletPolicy: {
+    maxPredictWallets: 10;
+    polymarketHedgeWalletsAllowed: 1;
+    frontendSigningAllowed: false;
+    frontendTransactionsAllowed: false;
+  };
+  summary: {
+    predictWalletCount: number;
+    maxPredictWallets: 10;
+    polymarketHedgeWalletCount: number;
+    totalPredictBalanceUsd: number;
+    totalPredictReservedUsd: number;
+    totalPredictAvailableUsd: number;
+    totalPredictNetExposureUsd: number;
+    totalPredictAbsExposureUsd: number;
+    polymarketBalanceUsd: number;
+    polymarketReservedUsd: number;
+    polymarketAvailableUsd: number;
+    currentPlannedHedgeUsd: number;
+  };
+  predictWallets: ManagedWallet[];
+  polymarketHedgeWallet: ManagedWallet | null;
+  warnings: readonly string[];
+}
+
 export interface DryRunTimelinePoint {
   generatedAt: string;
   planCount: number;

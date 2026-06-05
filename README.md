@@ -332,6 +332,42 @@ address, chain, balance, masked backend trading address, address match state,
 and network warnings. It does not sign messages, send transactions, expose
 private keys, expose mnemonics, expose API secrets, or enable hedge execution.
 
+The dashboard also exposes a read-only multi-wallet manager endpoint:
+
+```text
+GET /api/wallet-manager
+```
+
+This models up to 10 Predict wallets and exactly one Polymarket hedge wallet
+for observation. The API returns masked addresses, balances, reserved funds,
+available funds, Predict YES/NO/net exposure, and the current planned
+Polymarket hedge amount. It is read-only and always returns
+`liveTradingEnabled: false` and `canExecuteHedge: false`; it does not expose
+private keys, mnemonics, API secrets, raw signers, raw tokens, or any
+reserve/release mutation endpoint.
+
+Predict wallets can be supplied as JSON:
+
+```powershell
+$env:PREDICT_WALLETS_JSON='[
+  {"id":"predict-1","address":"0x1111111111111111111111111111111111111111","balanceUsd":20,"reservedUsd":5,"netExposureUsd":12},
+  {"id":"predict-2","address":"0x2222222222222222222222222222222222222222","balanceUsd":30,"netExposureUsd":-7}
+]'
+$env:POLYMARKET_FUNDER_ADDRESS="0x9999999999999999999999999999999999999999"
+$env:POLYMARKET_BALANCE_USD="100"
+$env:POLYMARKET_RESERVED_USD="12"
+$env:POLYMARKET_CURRENT_PLANNED_HEDGE_USD="8"
+```
+
+or by comma-separated lists:
+
+```powershell
+$env:PREDICT_WALLET_ADDRESSES="0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222"
+$env:PREDICT_WALLET_BALANCES_USD="20,30"
+$env:PREDICT_WALLET_RESERVED_USD="5,0"
+$env:PREDICT_WALLET_NET_EXPOSURES_USD="12,-7"
+```
+
 Account health is also read-only:
 
 ```text

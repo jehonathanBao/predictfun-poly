@@ -35,6 +35,7 @@ export * from "./core/preflight.js";
 export * from "./sim/simulator.js";
 export * from "./ws/manager.js";
 export * from "./ws/order-events.js";
+export * from "./wallet/wallet-manager.js";
 export * from "./markets/scanner.js";
 export * from "./matching/strictMatcher.js";
 export * from "./modeling/monte-carlo-digital.js";

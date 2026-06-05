@@ -8,6 +8,7 @@ import {
 } from "./dashboard-alerts.js";
 import { loadHedgePlansForDashboard } from "./dashboard-data-source.js";
 import { loadDashboardStatus } from "./dashboard-status.js";
+import { buildWalletManagerDashboardResponse } from "../wallet/wallet-manager.js";
 
 export interface WalletDashboardConfig {
   enabled: boolean;
@@ -88,6 +89,11 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
 
   if (url.pathname === "/api/wallet-status") {
     sendJson(response, 200, buildWalletStatusResponse(process.env));
+    return;
+  }
+
+  if (url.pathname === "/api/wallet-manager") {
+    sendJson(response, 200, buildWalletManagerDashboardResponse(process.env));
     return;
   }
 

@@ -5,6 +5,7 @@ import { DryRunReportPanel } from "./components/DryRunReportPanel";
 import { DryRunSummaryPanel } from "./components/DryRunSummaryPanel";
 import { ExposureTrendPanel } from "./components/ExposureTrendPanel";
 import { HedgePlanTable } from "./components/HedgePlanTable";
+import { MultiWalletPanel } from "./components/MultiWalletPanel";
 import { RuntimeStatusPanel } from "./components/RuntimeStatusPanel";
 import { WalletPanel } from "./wallet/WalletPanel";
 import type { DashboardStatus, DryRunSummary, HedgePlan, HedgePlanEnvelope } from "./types";
@@ -95,6 +96,8 @@ export function App() {
       <WalletPanel />
 
       <AccountHealthPanel />
+
+      <MultiWalletPanel />
 
       <DryRunAlertsPanel />
 

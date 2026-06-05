@@ -7,6 +7,7 @@ import {
   buildWalletStatusResponse,
   createDashboardServer,
 } from "../../src/server/hedge-dashboard.js";
+import { buildWalletManagerDashboardResponse } from "../../src/wallet/wallet-manager.js";
 
 let tempDir: string;
 
@@ -29,6 +30,18 @@ afterEach(async () => {
   delete process.env.PREDICT_USAGE_PCT;
   delete process.env.PREDICT_CURRENT_USAGE_PCT;
   delete process.env.PREDICT_ACCOUNT_COUNT;
+  delete process.env.PREDICT_WALLETS_JSON;
+  delete process.env.PREDICT_WALLET_ADDRESSES;
+  delete process.env.PREDICT_WALLET_BALANCES_USD;
+  delete process.env.PREDICT_WALLET_RESERVED_USD;
+  delete process.env.PREDICT_WALLET_YES_EXPOSURES_USD;
+  delete process.env.PREDICT_WALLET_NO_EXPOSURES_USD;
+  delete process.env.PREDICT_WALLET_NET_EXPOSURES_USD;
+  delete process.env.PREDICT_WALLET_STATUSES;
+  delete process.env.POLYMARKET_BALANCE_USD;
+  delete process.env.POLYMARKET_RESERVED_USD;
+  delete process.env.POLYMARKET_CURRENT_PLANNED_HEDGE_USD;
+  delete process.env.POLYMARKET_HEDGE_WALLET_CONFIGURED;
   delete process.env.HEDGE_MAX_PREDICT_USAGE_PCT;
   delete process.env.HEDGE_ALLOWED_VENUES;
   await rm(tempDir, { recursive: true, force: true });
@@ -92,6 +105,95 @@ describe("hedge dashboard wallet status", () => {
       expect(serialized).not.toContain("mnemonic");
       expect(serialized).not.toContain("privateKey");
       expect(serialized).not.toContain("apiSecret");
+      expect(serialized).not.toContain("rawSigner");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
+
+describe("hedge dashboard wallet manager API", () => {
+  it("builds read-only multi-wallet status without secret material", () => {
+    const status = buildWalletManagerDashboardResponse({
+      PREDICT_WALLETS_JSON: JSON.stringify([
+        {
+          id: "predict-1",
+          address: "0x1111111111111111111111111111111111111111",
+          balanceUsd: 25,
+          reservedUsd: 5,
+          netExposureUsd: 12,
+        },
+      ]),
+      POLYMARKET_FUNDER_ADDRESS: "0x9999999999999999999999999999999999999999",
+      POLYMARKET_BALANCE_USD: "80",
+      POLYMARKET_RESERVED_USD: "8",
+      POLYMARKET_PRIVATE_KEY: "private-key-value",
+      POLY_API_SECRET: "api-secret-value",
+      PREDICT_API_KEY: "predict-key-value",
+      HEDGE_LIVE_TRADING_ENABLED: "true",
+    });
+    const serialized = JSON.stringify(status);
+
+    expect(status.mode).toBe("dry_run");
+    expect(status.readOnly).toBe(true);
+    expect(status.liveTradingEnabled).toBe(false);
+    expect(status.canExecuteHedge).toBe(false);
+    expect(status.summary).toMatchObject({
+      predictWalletCount: 1,
+      polymarketHedgeWalletCount: 1,
+      totalPredictAvailableUsd: 20,
+      polymarketAvailableUsd: 72,
+    });
+    expect(status.walletPolicy).toMatchObject({
+      maxPredictWallets: 10,
+      polymarketHedgeWalletsAllowed: 1,
+      frontendSigningAllowed: false,
+      frontendTransactionsAllowed: false,
+    });
+    expect(status.warnings).toContain("live_trading_request_ignored_in_wallet_manager");
+    expect(serialized).not.toContain("private-key-value");
+    expect(serialized).not.toContain("api-secret-value");
+    expect(serialized).not.toContain("predict-key-value");
+    expect(serialized).not.toContain("mnemonic");
+    expect(serialized).not.toContain("rawSigner");
+  });
+
+  it("serves GET /api/wallet-manager as dry-run read-only status", async () => {
+    process.env.PREDICT_WALLET_ADDRESSES = "0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222";
+    process.env.PREDICT_WALLET_BALANCES_USD = "20,30";
+    process.env.PREDICT_WALLET_RESERVED_USD = "5,0";
+    process.env.PREDICT_WALLET_NET_EXPOSURES_USD = "9,-4";
+    process.env.POLYMARKET_FUNDER_ADDRESS = "0x9999999999999999999999999999999999999999";
+    process.env.POLYMARKET_BALANCE_USD = "100";
+    process.env.POLYMARKET_PRIVATE_KEY = "private-key-value";
+    process.env.PREDICT_API_KEY = "predict-key-value";
+
+    const server = createDashboardServer();
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("server did not bind to a TCP port");
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/wallet-manager`);
+      const body = (await response.json()) as Record<string, unknown>;
+      const serialized = JSON.stringify(body);
+
+      expect(response.status).toBe(200);
+      expect(body.mode).toBe("dry_run");
+      expect(body.readOnly).toBe(true);
+      expect(body.liveTradingEnabled).toBe(false);
+      expect(body.canExecuteHedge).toBe(false);
+      expect(body.summary).toMatchObject({
+        predictWalletCount: 2,
+        polymarketHedgeWalletCount: 1,
+        totalPredictAvailableUsd: 45,
+        totalPredictNetExposureUsd: 5,
+      });
+      expect(serialized).not.toContain("private-key-value");
+      expect(serialized).not.toContain("predict-key-value");
+      expect(serialized).not.toContain("mnemonic");
       expect(serialized).not.toContain("rawSigner");
     } finally {
       await new Promise<void>((resolve, reject) => {
@@ -319,6 +421,7 @@ describe("dashboard frontend safety copy", () => {
       "frontend/src/components/DryRunSummaryPanel.tsx",
       "frontend/src/components/ExposureTrendPanel.tsx",
       "frontend/src/components/HedgePlanTable.tsx",
+      "frontend/src/components/MultiWalletPanel.tsx",
       "frontend/src/components/RuntimeStatusPanel.tsx",
       "frontend/src/wallet/WalletPanel.tsx",
       "frontend/src/wallet/Web3Provider.tsx",
@@ -342,6 +445,7 @@ describe("dashboard frontend safety copy", () => {
       "frontend/src/components/DryRunReportPanel.tsx",
       "frontend/src/components/DryRunSummaryPanel.tsx",
       "frontend/src/components/ExposureTrendPanel.tsx",
+      "frontend/src/components/MultiWalletPanel.tsx",
       "frontend/src/wallet/WalletPanel.tsx",
       "frontend/src/wallet/Web3Provider.tsx",
       "frontend/src/wallet/readOnlyWalletGuard.ts",
