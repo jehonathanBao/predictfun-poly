@@ -572,8 +572,92 @@ describe("dry-run hedge worker", () => {
         depthUsd: 71.5,
         lastFetchAt: now.toISOString(),
         source: "fixture:valid",
+        paperSimulation: {
+          enabled: false,
+          predictWalletCount: 10,
+          predictWalletFundsUsd: 100,
+          polymarketHedgeFundsUsd: 100,
+          simulatedNetExposureUsd: 20,
+          plannedHedgeUsd: 10,
+          polymarketHedgeWallet: {
+            reservedUsd: 10,
+            availableUsd: 90,
+            currentPlannedHedgeUsd: 10,
+          },
+        },
+        simulatedWallets: {
+          predictWallets: 10,
+          perWalletFundsUsd: 100,
+          polymarketHedgeFundsUsd: 100,
+          polymarketAvailableUsd: 90,
+          polymarketReservedUsd: 10,
+          plannedHedgeUsd: 10,
+        },
       },
     });
+  });
+
+  it("caps hedge size and dynamic paper wallet reservation by Polymarket paper funds", async () => {
+    const written = await writeDryRunHedgeSnapshot({
+      latestPath: join(tempDir, "dynamic-funds.latest.json"),
+      historyPath: join(tempDir, "dynamic-funds.history.jsonl"),
+      now: new Date("2026-06-05T00:00:00.000Z"),
+      workerOptions: {
+        paperLiveMarketData: true,
+        paperSimulateWallets: true,
+        paperFixtureScenario: "valid",
+        paperSimPredictWalletCount: 10,
+        paperSimPredictWalletFundsUsd: 100,
+        paperSimPolymarketHedgeFundsUsd: 6,
+        paperSimNetExposureUsd: 20,
+        paperHedgeRatio: 0.5,
+        paperMaxOrderUsd: 10,
+      },
+    });
+
+    expect(written.plans[0]).toMatchObject({
+      executable: false,
+      dryRun: true,
+      riskApproved: true,
+      hedgeSizeUsd: 6,
+      metadata: {
+        paperSimulation: {
+          enabled: true,
+          predictWalletCount: 10,
+          predictWalletFundsUsd: 100,
+          polymarketHedgeFundsUsd: 6,
+          simulatedNetExposureUsd: 20,
+          plannedHedgeUsd: 6,
+          predictWallets: expect.arrayContaining([
+            expect.objectContaining({
+              id: "paper-predict-1",
+              balanceUsd: 100,
+              availableUsd: 100,
+              reservedUsd: 0,
+              netExposureUsd: 20,
+            }),
+          ]),
+          polymarketHedgeWallet: {
+            id: "paper-polymarket-hedge",
+            balanceUsd: 6,
+            reservedUsd: 6,
+            availableUsd: 0,
+            currentPlannedHedgeUsd: 6,
+          },
+        },
+        simulatedWallets: {
+          availableUsd: expect.arrayContaining([100]),
+          reservedUsd: expect.arrayContaining([0]),
+          netExposureUsd: expect.arrayContaining([20]),
+          polymarketAvailableUsd: 0,
+          polymarketReservedUsd: 6,
+          plannedHedgeUsd: 6,
+        },
+      },
+    });
+    const operatorLog = await readFile(process.env.OPERATOR_LOG_PATH!, "utf8");
+    expect(operatorLog).toContain("paper_wallet_funds_updated");
+    expect(operatorLog).toContain('"hedgeSizeUsd":6');
   });
 
   it("writes rejected dry-run plans for unsafe fixture scenarios without throwing", async () => {

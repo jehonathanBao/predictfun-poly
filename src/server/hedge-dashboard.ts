@@ -9,7 +9,7 @@ import {
 import { loadHedgePlansForDashboard } from "./dashboard-data-source.js";
 import { loadDashboardStatus } from "./dashboard-status.js";
 import { loadOperatorLogsForDashboard } from "./operator-logs.js";
-import { buildWalletManagerDashboardResponse } from "../wallet/wallet-manager.js";
+import { loadWalletManagerDashboardResponse } from "../wallet/wallet-manager.js";
 import { paperLiveStatusFromEnv } from "../workers/dry-run-hedge-worker.js";
 import { appendOperatorLog } from "../logging/operator-log.js";
 
@@ -121,7 +121,7 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   }
 
   if (url.pathname === "/api/wallet-manager") {
-    sendJson(response, 200, buildWalletManagerDashboardResponse(process.env));
+    sendJson(response, 200, await loadWalletManagerDashboardResponse(process.env));
     return;
   }
 

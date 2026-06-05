@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   WalletManager,
+  buildPaperSimulationStatus,
   buildWalletManagerDashboardResponse,
   walletInfo,
 } from "../../src/wallet/wallet-manager.js";
@@ -119,7 +120,8 @@ describe("read-only wallet manager", () => {
         totalPredictAvailableUsd: 1000,
         totalPredictNetExposureUsd: 20,
         polymarketBalanceUsd: 100,
-        polymarketAvailableUsd: 100,
+        polymarketReservedUsd: 10,
+        polymarketAvailableUsd: 90,
         currentPlannedHedgeUsd: 10,
       },
       paperSimulation: {
@@ -129,6 +131,11 @@ describe("read-only wallet manager", () => {
         polymarketHedgeFundsUsd: 100,
         simulatedNetExposureUsd: 20,
         plannedHedgeUsd: 10,
+        polymarketHedgeWallet: {
+          reservedUsd: 10,
+          availableUsd: 90,
+          currentPlannedHedgeUsd: 10,
+        },
         realPredictWalletCount: 0,
         realPolymarketHedgeWalletConfigured: false,
       },
@@ -146,6 +153,8 @@ describe("read-only wallet manager", () => {
     expect(response.polymarketHedgeWallet).toMatchObject({
       id: "paper-polymarket-hedge",
       addressMasked: "paper-poly",
+      reservedUsd: 10,
+      availableUsd: 90,
       currentPlannedHedgeUsd: 10,
       paperSimulated: true,
     });
@@ -156,6 +165,44 @@ describe("read-only wallet manager", () => {
     ]));
     expect(response.warnings).not.toContain("predict_wallets_not_configured");
     expect(response.warnings).not.toContain("polymarket_hedge_wallet_not_configured");
+  });
+
+  it("uses latest paper simulation metadata to show dynamic hedge reservations", () => {
+    const response = buildWalletManagerDashboardResponse({
+      PAPER_SIMULATE_WALLETS: "true",
+      PAPER_SIM_PREDICT_WALLET_COUNT: "10",
+      PAPER_SIM_PREDICT_WALLET_FUNDS_USD: "100",
+      PAPER_SIM_POLYMARKET_HEDGE_FUNDS_USD: "8",
+      PAPER_SIM_NET_EXPOSURE_USD: "20",
+    }, new Date("2026-06-05T00:00:00.000Z"), {
+      paperSimulation: buildPaperSimulationStatus({
+        enabled: true,
+        predictWalletCount: 10,
+        predictWalletFundsUsd: 100,
+        polymarketHedgeFundsUsd: 8,
+        simulatedNetExposureUsd: 20,
+        plannedHedgeUsd: 6,
+        reservedHedgeUsd: 6,
+      }),
+    });
+
+    expect(response.summary).toMatchObject({
+      predictWalletCount: 10,
+      totalPredictBalanceUsd: 1000,
+      totalPredictAvailableUsd: 1000,
+      totalPredictNetExposureUsd: 20,
+      polymarketBalanceUsd: 8,
+      polymarketReservedUsd: 6,
+      polymarketAvailableUsd: 2,
+      currentPlannedHedgeUsd: 6,
+    });
+    expect(response.paperSimulation).toMatchObject({
+      plannedHedgeUsd: 6,
+      polymarketHedgeWallet: {
+        reservedUsd: 6,
+        availableUsd: 2,
+      },
+    });
   });
 
   it("supports in-memory reservations without enabling live execution", () => {

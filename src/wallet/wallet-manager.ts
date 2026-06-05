@@ -1,3 +1,9 @@
+import {
+  DEFAULT_LATEST_HEDGE_PLANS_PATH,
+  readLatestHedgePlans,
+  type SanitizedHedgePlanRecord,
+} from "../storage/hedge-plan-store.js";
+
 export type WalletVenue = "PREDICT" | "POLYMARKET";
 export type WalletRole = "predict_account" | "polymarket_hedge";
 
@@ -41,8 +47,40 @@ export interface PaperSimulationStatus {
   polymarketHedgeFundsUsd: number;
   simulatedNetExposureUsd: number;
   plannedHedgeUsd: number;
+  predictWallets: readonly PaperSimulatedPredictWallet[];
+  polymarketHedgeWallet: PaperSimulatedPolymarketWallet | null;
   realPredictWalletCount: number;
   realPolymarketHedgeWalletConfigured: boolean;
+}
+
+export interface PaperSimulatedPredictWallet {
+  id: string;
+  balanceUsd: number;
+  reservedUsd: number;
+  availableUsd: number;
+  netExposureUsd: number;
+  yesExposureUsd: number;
+  noExposureUsd: number;
+}
+
+export interface PaperSimulatedPolymarketWallet {
+  id: string;
+  balanceUsd: number;
+  reservedUsd: number;
+  availableUsd: number;
+  currentPlannedHedgeUsd: number;
+}
+
+export interface PaperSimulationBuildInput {
+  enabled: boolean;
+  predictWalletCount: number;
+  predictWalletFundsUsd: number;
+  polymarketHedgeFundsUsd: number;
+  simulatedNetExposureUsd: number;
+  plannedHedgeUsd: number;
+  reservedHedgeUsd?: number;
+  realPredictWalletCount?: number;
+  realPolymarketHedgeWalletConfigured?: boolean;
 }
 
 export interface WalletReservation {
@@ -81,6 +119,10 @@ export interface WalletManagerDashboardResponse {
   predictWallets: readonly PublicWalletInfo[];
   polymarketHedgeWallet: PublicWalletInfo | null;
   warnings: readonly string[];
+}
+
+export interface WalletManagerDashboardOptions {
+  paperSimulation?: PaperSimulationStatus;
 }
 
 export class WalletManager {
@@ -182,8 +224,9 @@ export class WalletManager {
 export function buildWalletManagerDashboardResponse(
   env: NodeJS.ProcessEnv = process.env,
   now = new Date(),
+  options: WalletManagerDashboardOptions = {},
 ): WalletManagerDashboardResponse {
-  const { wallets, warnings, paperSimulation } = walletsFromEnv(env);
+  const { wallets, warnings, paperSimulation } = walletsFromEnv(env, options.paperSimulation);
   const manager = new WalletManager(wallets);
   const snapshot = manager.snapshot();
   const predictWallets = snapshot.wallets.filter((wallet) => wallet.role === "predict_account");
@@ -228,6 +271,36 @@ export function buildWalletManagerDashboardResponse(
     polymarketHedgeWallet: publicPolymarketWallet,
     warnings: [...new Set(allWarnings)],
   };
+}
+
+export async function loadWalletManagerDashboardResponse(
+  env: NodeJS.ProcessEnv = process.env,
+  now = new Date(),
+): Promise<WalletManagerDashboardResponse> {
+  const latestPath = env.HEDGE_DASHBOARD_LATEST_PATH ?? DEFAULT_LATEST_HEDGE_PLANS_PATH;
+  const latest = await readLatestHedgePlans(latestPath);
+  return buildWalletManagerDashboardResponse(env, now, {
+    paperSimulation: paperSimulationFromLatestRecord(latest),
+  });
+}
+
+function paperSimulationFromLatestRecord(record: SanitizedHedgePlanRecord | undefined): PaperSimulationStatus | undefined {
+  const firstPlan = record?.plans[0];
+  const metadata = isRecord(firstPlan?.metadata) ? firstPlan.metadata : {};
+  const raw = isRecord(metadata.paperSimulation) ? metadata.paperSimulation : {};
+  if (Object.keys(raw).length === 0) return undefined;
+
+  return buildPaperSimulationStatus({
+    enabled: raw.enabled === true,
+    predictWalletCount: finiteNumber(raw.predictWalletCount, 10),
+    predictWalletFundsUsd: finiteNumber(raw.predictWalletFundsUsd, 100),
+    polymarketHedgeFundsUsd: finiteNumber(raw.polymarketHedgeFundsUsd, 100),
+    simulatedNetExposureUsd: finiteNumber(raw.simulatedNetExposureUsd, 0),
+    plannedHedgeUsd: finiteNumber(raw.plannedHedgeUsd, finiteNumber(firstPlan?.hedgeSizeUsd, 0)),
+    reservedHedgeUsd: finiteNumber(raw.reservedHedgeUsd, finiteNumber(raw.plannedHedgeUsd, finiteNumber(firstPlan?.hedgeSizeUsd, 0))),
+    realPredictWalletCount: finiteNumber(raw.realPredictWalletCount, 0),
+    realPolymarketHedgeWalletConfigured: raw.realPolymarketHedgeWalletConfigured === true,
+  });
 }
 
 export function walletInfo(input: {
@@ -278,11 +351,20 @@ export function walletInfo(input: {
 
 function walletsFromEnv(
   env: NodeJS.ProcessEnv,
+  latestPaperSimulation?: PaperSimulationStatus,
 ): { wallets: WalletInfo[]; warnings: string[]; paperSimulation: PaperSimulationStatus } {
   const warnings: string[] = [];
   const predictWallets = predictWalletsFromEnv(env, warnings);
   const polymarketWallet = polymarketWalletFromEnv(env);
-  const paperSimulation = paperSimulationFromEnv(env, predictWallets.length, polymarketWallet !== undefined);
+  const envPaperSimulation = paperSimulationFromEnv(env, predictWallets.length, polymarketWallet !== undefined);
+  const paperSimulation = latestPaperSimulation?.enabled
+    ? {
+      ...envPaperSimulation,
+      ...latestPaperSimulation,
+      realPredictWalletCount: predictWallets.length,
+      realPolymarketHedgeWalletConfigured: polymarketWallet !== undefined,
+    }
+    : envPaperSimulation;
   const paperPredictWallets = paperSimulation.enabled && predictWallets.length === 0
     ? paperPredictWalletsFromSimulation(paperSimulation)
     : [];
@@ -322,7 +404,7 @@ function paperSimulationFromEnv(
     Math.min(Math.abs(simulatedNetExposureUsd) * hedgeRatio, maxOrderUsd, polymarketHedgeFundsUsd),
   );
 
-  return {
+  return buildPaperSimulationStatus({
     enabled: parseBool(env.PAPER_SIMULATE_WALLETS, false),
     predictWalletCount,
     predictWalletFundsUsd: roundUsd(predictWalletFundsUsd),
@@ -331,12 +413,76 @@ function paperSimulationFromEnv(
     plannedHedgeUsd,
     realPredictWalletCount,
     realPolymarketHedgeWalletConfigured,
+  });
+}
+
+export function buildPaperSimulationStatus(input: PaperSimulationBuildInput): PaperSimulationStatus {
+  const predictWalletCount = clampInteger(input.predictWalletCount, 0, 10);
+  const predictWalletFundsUsd = roundUsd(safeNonNegativeNumber(input.predictWalletFundsUsd));
+  const polymarketHedgeFundsUsd = roundUsd(safeNonNegativeNumber(input.polymarketHedgeFundsUsd));
+  const simulatedNetExposureUsd = roundUsd(safeNumber(input.simulatedNetExposureUsd));
+  const plannedHedgeUsd = roundUsd(Math.min(
+    safeNonNegativeNumber(input.plannedHedgeUsd),
+    polymarketHedgeFundsUsd,
+  ));
+  const reservedHedgeUsd = roundUsd(Math.min(
+    safeNonNegativeNumber(input.reservedHedgeUsd ?? plannedHedgeUsd),
+    polymarketHedgeFundsUsd,
+  ));
+  const predictWallets = buildPaperPredictWalletRows({
+    predictWalletCount,
+    predictWalletFundsUsd,
+    simulatedNetExposureUsd,
+  });
+
+  return {
+    enabled: input.enabled,
+    predictWalletCount,
+    predictWalletFundsUsd,
+    polymarketHedgeFundsUsd,
+    simulatedNetExposureUsd,
+    plannedHedgeUsd,
+    predictWallets,
+    polymarketHedgeWallet: {
+      id: "paper-polymarket-hedge",
+      balanceUsd: polymarketHedgeFundsUsd,
+      reservedUsd: reservedHedgeUsd,
+      availableUsd: roundUsd(Math.max(0, polymarketHedgeFundsUsd - reservedHedgeUsd)),
+      currentPlannedHedgeUsd: plannedHedgeUsd,
+    },
+    realPredictWalletCount: input.realPredictWalletCount ?? 0,
+    realPolymarketHedgeWalletConfigured: input.realPolymarketHedgeWalletConfigured ?? false,
   };
 }
 
 function paperPredictWalletsFromSimulation(paperSimulation: PaperSimulationStatus): WalletInfo[] {
-  return Array.from({ length: paperSimulation.predictWalletCount }, (_, index) => {
-    const netExposureUsd = index === 0 ? paperSimulation.simulatedNetExposureUsd : 0;
+  return paperSimulation.predictWallets.map((wallet, index) =>
+    walletInfo({
+      id: wallet.id || `paper-predict-${index + 1}`,
+      venue: "PREDICT",
+      role: "predict_account",
+      address: `paper-p${String(index + 1).padStart(2, "0")}`,
+      chainId: null,
+      network: "Paper",
+      balanceUsd: wallet.balanceUsd,
+      reservedUsd: wallet.reservedUsd,
+      netExposureUsd: wallet.netExposureUsd,
+      yesExposureUsd: wallet.yesExposureUsd,
+      noExposureUsd: wallet.noExposureUsd,
+      status: "paper_simulated",
+      paperSimulated: true,
+    }),
+  );
+}
+
+function buildPaperPredictWalletRows(input: {
+  predictWalletCount: number;
+  predictWalletFundsUsd: number;
+  simulatedNetExposureUsd: number;
+}): PaperSimulatedPredictWallet[] {
+  return Array.from({ length: input.predictWalletCount }, (_, index) => {
+    const netExposureUsd = index === 0 ? input.simulatedNetExposureUsd : 0;
+    const reservedUsd = 0;
     return walletInfo({
       id: `paper-predict-${index + 1}`,
       venue: "PREDICT",
@@ -344,17 +490,27 @@ function paperPredictWalletsFromSimulation(paperSimulation: PaperSimulationStatu
       address: `paper-p${String(index + 1).padStart(2, "0")}`,
       chainId: null,
       network: "Paper",
-      balanceUsd: paperSimulation.predictWalletFundsUsd,
+      balanceUsd: input.predictWalletFundsUsd,
+      reservedUsd,
       netExposureUsd,
       yesExposureUsd: netExposureUsd > 0 ? netExposureUsd : 0,
       noExposureUsd: netExposureUsd < 0 ? Math.abs(netExposureUsd) : 0,
       status: "paper_simulated",
       paperSimulated: true,
     });
-  });
+  }).map((wallet) => ({
+    id: wallet.id,
+    balanceUsd: wallet.balanceUsd,
+    reservedUsd: wallet.reservedUsd,
+    availableUsd: wallet.availableUsd,
+    netExposureUsd: wallet.netExposureUsd,
+    yesExposureUsd: wallet.yesExposureUsd,
+    noExposureUsd: wallet.noExposureUsd,
+  }));
 }
 
 function paperPolymarketWalletFromSimulation(paperSimulation: PaperSimulationStatus): WalletInfo {
+  const wallet = paperSimulation.polymarketHedgeWallet;
   return walletInfo({
     id: "paper-polymarket-hedge",
     venue: "POLYMARKET",
@@ -362,8 +518,9 @@ function paperPolymarketWalletFromSimulation(paperSimulation: PaperSimulationSta
     address: "paper-poly",
     chainId: null,
     network: "Paper",
-    balanceUsd: paperSimulation.polymarketHedgeFundsUsd,
-    currentPlannedHedgeUsd: paperSimulation.plannedHedgeUsd,
+    balanceUsd: wallet?.balanceUsd ?? paperSimulation.polymarketHedgeFundsUsd,
+    reservedUsd: wallet?.reservedUsd ?? paperSimulation.plannedHedgeUsd,
+    currentPlannedHedgeUsd: wallet?.currentPlannedHedgeUsd ?? paperSimulation.plannedHedgeUsd,
     status: "paper_hedge_only",
     paperSimulated: true,
   });
@@ -522,6 +679,11 @@ function safeNumber(value: unknown): number {
 
 function safeNonNegativeNumber(value: unknown): number {
   return Math.max(0, safeNumber(value));
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function roundUsd(value: number): number {

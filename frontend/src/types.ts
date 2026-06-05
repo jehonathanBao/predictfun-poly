@@ -171,8 +171,28 @@ export interface PaperSimulationStatus {
   polymarketHedgeFundsUsd: number;
   simulatedNetExposureUsd: number;
   plannedHedgeUsd: number;
+  predictWallets?: readonly PaperSimulatedPredictWallet[];
+  polymarketHedgeWallet?: PaperSimulatedPolymarketWallet | null;
   realPredictWalletCount: number;
   realPolymarketHedgeWalletConfigured: boolean;
+}
+
+export interface PaperSimulatedPredictWallet {
+  id: string;
+  balanceUsd: number;
+  reservedUsd: number;
+  availableUsd: number;
+  netExposureUsd: number;
+  yesExposureUsd: number;
+  noExposureUsd: number;
+}
+
+export interface PaperSimulatedPolymarketWallet {
+  id: string;
+  balanceUsd: number;
+  reservedUsd: number;
+  availableUsd: number;
+  currentPlannedHedgeUsd: number;
 }
 
 export interface WalletManagerStatus {

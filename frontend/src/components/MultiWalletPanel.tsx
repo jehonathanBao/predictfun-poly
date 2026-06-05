@@ -144,11 +144,19 @@ export function MultiWalletPanel({ paperLive }: { paperLive?: PaperLiveStatus })
 }
 
 function PaperSimulationBox({ status }: { status: NonNullable<WalletManagerStatus["paperSimulation"]> }) {
+  const predictReservedUsd = status.predictWallets?.reduce((total, wallet) => total + wallet.reservedUsd, 0) ?? 0;
+  const predictAvailableUsd = status.predictWallets?.reduce((total, wallet) => total + wallet.availableUsd, 0) ??
+    status.predictWalletCount * status.predictWalletFundsUsd;
+  const hedgeWallet = status.polymarketHedgeWallet;
   return (
     <div className="paperSimulationBox" aria-label="paper simulated wallet status">
       <WalletMetric label="Paper Predict wallets" value={`${status.predictWalletCount} / 10`} />
       <WalletMetric label="Funds per Predict wallet" value={formatUsd(status.predictWalletFundsUsd)} />
+      <WalletMetric label="Predict reserved" value={formatUsd(predictReservedUsd)} />
+      <WalletMetric label="Predict available" value={formatUsd(predictAvailableUsd)} />
       <WalletMetric label="Paper hedge funds" value={formatUsd(status.polymarketHedgeFundsUsd)} />
+      <WalletMetric label="Hedge reserved" value={formatUsd(hedgeWallet?.reservedUsd ?? 0)} />
+      <WalletMetric label="Hedge available" value={formatUsd(hedgeWallet?.availableUsd ?? status.polymarketHedgeFundsUsd)} />
       <WalletMetric label="Sim exposure" value={formatUsd(status.simulatedNetExposureUsd)} />
       <WalletMetric label="Planned hedge" value={formatUsd(status.plannedHedgeUsd)} />
       <WalletMetric label="Real Predict wallets" value={status.realPredictWalletCount.toString()} />

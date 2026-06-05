@@ -14,6 +14,7 @@ import {
   type PaperLiveFixtureScenario,
 } from "./dry-run-paper-live-fixture.js";
 import { appendOperatorLog, DEFAULT_OPERATOR_LOG_PATH } from "../logging/operator-log.js";
+import { buildPaperSimulationStatus } from "../wallet/wallet-manager.js";
 
 export interface DryRunHedgeWorkerOptions {
   intervalMs: number;
@@ -382,7 +383,7 @@ function buildPaperPlanFromBook(
   const requestedUsd = Math.abs(netExposureUsd) * options.paperHedgeRatio;
   const hedgeSizeUsd = top === undefined
     ? 0
-    : roundUsd(Math.min(requestedUsd, options.paperMaxOrderUsd, options.paperSimFundsUsd, depthUsd));
+    : roundUsd(Math.min(requestedUsd, options.paperMaxOrderUsd, options.paperSimPolymarketHedgeFundsUsd, depthUsd));
   const spread = book.asks[0] && book.bids[0] ? roundUsd(book.asks[0].price - book.bids[0].price) : undefined;
   const riskCodes = new Set(book.warningCodes);
   if (spread !== undefined && spread > options.paperMaxSpread) riskCodes.add("paper_orderbook_spread_too_wide");
@@ -394,6 +395,10 @@ function buildPaperPlanFromBook(
   const riskCodeList = [...riskCodes];
   const rejectReason = riskCodeList[0];
   const exposureAfterUsd = roundUsd(netExposureUsd >= 0 ? netExposureUsd - hedgeSizeUsd : netExposureUsd + hedgeSizeUsd);
+  const paperSimulation = paperSimulationMetadata(options, {
+    plannedHedgeUsd: hedgeSizeUsd,
+    reservedHedgeUsd: riskCodeList.length === 0 ? hedgeSizeUsd : 0,
+  });
 
   return {
     strategy: "EXPOSURE_HEDGE",
@@ -431,14 +436,14 @@ function buildPaperPlanFromBook(
     metadata: {
       paperTrading: true,
       marketData: "live",
-      simulatedFundsUsd: options.paperSimFundsUsd,
+      simulatedFundsUsd: options.paperSimPolymarketHedgeFundsUsd,
       simulatedNetExposureUsd: netExposureUsd,
       bestBid: book.bids[0]?.price,
       bestAsk: book.asks[0]?.price,
       spread,
       depthUsd,
       orderbookTimestampMs: book.timestampMs,
-      ...paperMarketMetadata(options, diagnostics),
+      ...paperMarketMetadata(options, diagnostics, paperSimulation),
     },
   };
 }
@@ -475,8 +480,11 @@ function paperRejectedPlan(
     },
     metadata: {
       message,
-      ...paperMarketMetadata(options, diagnostics),
-      simulatedFundsUsd: options.paperSimFundsUsd,
+      ...paperMarketMetadata(options, diagnostics, paperSimulationMetadata(options, {
+        plannedHedgeUsd: 0,
+        reservedHedgeUsd: 0,
+      })),
+      simulatedFundsUsd: options.paperSimPolymarketHedgeFundsUsd,
       simulatedNetExposureUsd: roundUsd(options.paperSimNetExposureUsd),
     },
   };
@@ -585,6 +593,7 @@ function paperBookRequest(options: DryRunHedgeWorkerOptions): PaperBookRequest {
 function paperMarketMetadata(
   options: DryRunHedgeWorkerOptions,
   diagnostics: PaperMarketDiagnostics = {},
+  paperSimulation = paperSimulationMetadata(options),
 ): Record<string, unknown> {
   const status = paperLiveStatusFromOptions(options);
   return {
@@ -596,7 +605,8 @@ function paperMarketMetadata(
     lastFetchAt: diagnostics.lastFetchAt,
     fetchErrorCode: diagnostics.fetchErrorCode,
     source: status.sourceLabel,
-    paperSimulation: paperSimulationMetadata(options),
+    paperSimulation,
+    simulatedWallets: simulatedWalletMetadata(paperSimulation),
   };
 }
 
@@ -613,6 +623,10 @@ async function writeWorkerOperatorEvents(
     const riskCodes = Array.isArray(firstPlan.riskCodes) ? firstPlan.riskCodes.map(String) : [];
     const rejectReason = typeof firstPlan.rejectReason === "string" ? firstPlan.rejectReason : undefined;
     const metadata = asRecord(firstPlan.metadata);
+    const planPaperSimulation = asRecord(metadata.paperSimulation);
+    const paperSimulation = Object.keys(planPaperSimulation).length > 0
+      ? planPaperSimulation
+      : paperSimulationMetadata(options);
     const baseData = {
       paperLive: true,
       readOnly: true,
@@ -622,7 +636,7 @@ async function writeWorkerOperatorEvents(
       tokenIdMasked: paperLive.tokenIdMasked,
       marketDataUrlHost: paperLive.marketDataUrlHost,
       fixtureScenario: paperLive.fixtureScenario,
-      paperSimulation: paperSimulationMetadata(options),
+      paperSimulation,
     };
 
     await appendOperatorLog({
@@ -639,7 +653,18 @@ async function writeWorkerOperatorEvents(
         component: "dry-run-worker",
         event: "paper_sim_wallets_loaded",
         message: "Paper simulated wallets loaded",
-        data: paperSimulationMetadata(options),
+        data: paperSimulation,
+      }, options.operatorLogPath);
+      await appendOperatorLog({
+        level: "info",
+        component: "dry-run-worker",
+        event: "paper_wallet_funds_updated",
+        message: "Paper simulated wallet funds updated",
+        data: {
+          paperSimulation,
+          hedgeSizeUsd: firstPlan.hedgeSizeUsd,
+          riskApproved: riskCodes.length === 0,
+        },
       }, options.operatorLogPath);
     }
 
@@ -736,13 +761,44 @@ async function writeWorkerOperatorEvents(
   }
 }
 
-function paperSimulationMetadata(options: DryRunHedgeWorkerOptions): Record<string, unknown> {
-  return {
+function paperSimulationMetadata(
+  options: DryRunHedgeWorkerOptions,
+  overrides: {
+    plannedHedgeUsd?: number;
+    reservedHedgeUsd?: number;
+  } = {},
+): Record<string, unknown> {
+  const fallbackPlannedHedgeUsd = Math.min(
+    Math.abs(options.paperSimNetExposureUsd) * options.paperHedgeRatio,
+    options.paperMaxOrderUsd,
+    options.paperSimPolymarketHedgeFundsUsd,
+  );
+  return buildPaperSimulationStatus({
     enabled: options.paperSimulateWallets,
     predictWalletCount: options.paperSimPredictWalletCount,
     predictWalletFundsUsd: options.paperSimPredictWalletFundsUsd,
     polymarketHedgeFundsUsd: options.paperSimPolymarketHedgeFundsUsd,
     simulatedNetExposureUsd: roundUsd(options.paperSimNetExposureUsd),
+    plannedHedgeUsd: roundUsd(overrides.plannedHedgeUsd ?? fallbackPlannedHedgeUsd),
+    reservedHedgeUsd: roundUsd(overrides.reservedHedgeUsd ?? fallbackPlannedHedgeUsd),
+  }) as unknown as Record<string, unknown>;
+}
+
+function simulatedWalletMetadata(paperSimulation: Record<string, unknown>): Record<string, unknown> {
+  const predictWallets = Array.isArray(paperSimulation.predictWallets)
+    ? paperSimulation.predictWallets.map((wallet) => asRecord(wallet))
+    : [];
+  const polymarketWallet = asRecord(paperSimulation.polymarketHedgeWallet);
+  return {
+    predictWallets: paperSimulation.predictWalletCount,
+    perWalletFundsUsd: paperSimulation.predictWalletFundsUsd,
+    polymarketHedgeFundsUsd: paperSimulation.polymarketHedgeFundsUsd,
+    availableUsd: predictWallets.map((wallet) => wallet.availableUsd),
+    reservedUsd: predictWallets.map((wallet) => wallet.reservedUsd),
+    netExposureUsd: predictWallets.map((wallet) => wallet.netExposureUsd),
+    polymarketAvailableUsd: polymarketWallet.availableUsd,
+    polymarketReservedUsd: polymarketWallet.reservedUsd,
+    plannedHedgeUsd: paperSimulation.plannedHedgeUsd,
   };
 }
 

@@ -9,6 +9,8 @@ const MAX_DIAGNOSTIC_ROWS = 8;
 
 export function DryRunDiagnosticsPanel({ plans, paperLive }: DryRunDiagnosticsPanelProps) {
   const diagnosticPlans = plans.slice(0, MAX_DIAGNOSTIC_ROWS);
+  const paperSimulation = diagnosticPlans.find((plan) => plan.metadata?.paperSimulation)?.metadata?.paperSimulation;
+  const hedgeWallet = paperSimulation?.polymarketHedgeWallet;
 
   return (
     <section className="diagnosticsPanel" aria-label="paper live diagnostics">
@@ -30,6 +32,8 @@ export function DryRunDiagnosticsPanel({ plans, paperLive }: DryRunDiagnosticsPa
         <DiagnosticMetric label="URL host" value={paperLive?.marketDataUrlHost ?? "-"} />
         <DiagnosticMetric label="Last fetch" value={formatTimestamp(paperLive?.lastFetchAt)} />
         <DiagnosticMetric label="Fetch error" value={paperLive?.fetchErrorCode ?? "-"} tone={paperLive?.fetchErrorCode ? "warn" : "ok"} />
+        <DiagnosticMetric label="Paper hedge reserved" value={formatUsd(hedgeWallet?.reservedUsd)} />
+        <DiagnosticMetric label="Paper hedge available" value={formatUsd(hedgeWallet?.availableUsd)} />
       </div>
 
       <div className="diagnosticsTableShell">

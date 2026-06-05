@@ -388,6 +388,16 @@ the masked token id or URL host, `lastFetchAt`, and `fetchErrorCode` without
 returning raw query strings or secrets. The default dashboard stale threshold
 is 30 seconds so a 15 second paper-live worker interval does not show stale
 unless the orderbook itself is stale.
+
+When `PAPER_SIMULATE_WALLETS=true`, each worker cycle also writes dynamic
+paper wallet state into the dry-run plan metadata. The planned hedge size is
+limited by net exposure, max order size, orderbook depth, and the single
+Polymarket paper hedge wallet balance. Approved paper plans reserve the
+planned hedge amount on the paper Polymarket wallet and reduce its displayed
+available balance; rejected plans keep the paper funds unreserved. The
+dashboard's Wallet Manager reads the latest dry-run file and shows the current
+paper wallet `reservedUsd`, `availableUsd`, and Predict `netExposureUsd`
+without adding any mutation endpoint.
 Optional validation knobs:
 
 ```powershell
